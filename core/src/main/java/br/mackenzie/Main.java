@@ -29,9 +29,14 @@ public class Main extends ApplicationAdapter {
     private Texture texCenario;
     private Texture texFadaParada;
     private Texture texFadaAndando;
+    private Texture texFadaVoando1;
+    private Texture texFadaVoando2;
 
     private float fadaX = LARGURA_MUNDO / 2f;  // centro dos pés da fada
+    private float fadaY = CHAO_Y;
     private boolean andando = false;
+    private boolean subindo = false;
+    private boolean descendo = false;
     private boolean viradaParaDireita = true;
     private float tempoAndando = 0f;
 
@@ -48,6 +53,8 @@ public class Main extends ApplicationAdapter {
         texCenario = carregar("CenárioPrincipal.jpg");
         texFadaParada = carregar("Fada Estatica.png");
         texFadaAndando = carregar("Fada Andando.png");
+        texFadaVoando1 = carregar("Fada Voandinho1.png");
+        texFadaVoando2 = carregar("Fada Voandinho2.png");
     }
 
     private Texture carregar(String arquivo) {
@@ -64,7 +71,11 @@ public class Main extends ApplicationAdapter {
     private void atualizar(float delta) {
         boolean direita = Gdx.input.isKeyPressed(Input.Keys.RIGHT);
         boolean esquerda = Gdx.input.isKeyPressed(Input.Keys.LEFT);
+        boolean teclaCima = Gdx.input.isKeyPressed(Input.Keys.UP);
+        boolean teclaBaixo = Gdx.input.isKeyPressed(Input.Keys.DOWN);
         andando = direita != esquerda; // só anda se apertar UMA das setas
+        subindo = teclaCima != teclaBaixo && teclaCima;
+        descendo = teclaCima != teclaBaixo && teclaBaixo;
 
         if (andando) {
             viradaParaDireita = direita;
@@ -74,6 +85,15 @@ public class Main extends ApplicationAdapter {
         } else {
             tempoAndando = 0f;
         }
+
+        if (subindo) {
+            fadaY += VELOCIDADE_FADA * delta;
+        } else if (descendo) {
+            fadaY -= VELOCIDADE_FADA * delta;
+        }
+
+        float alturaMaximaFada = Math.max(alturaDe(texFadaVoando1), alturaDe(texFadaVoando2));
+        fadaY = MathUtils.clamp(fadaY, 0f, ALTURA_MUNDO - alturaMaximaFada);
 
         float meiaLargura = larguraDe(texFadaAndando) / 2f;
         fadaX = MathUtils.clamp(fadaX, meiaLargura, LARGURA_MUNDO - meiaLargura);
@@ -93,7 +113,16 @@ public class Main extends ApplicationAdapter {
     }
 
     private void desenharFada() {
-        Texture tex = andando ? texFadaAndando : texFadaParada;
+        Texture tex;
+        if (subindo) {
+            tex = texFadaVoando1;
+        } else if (descendo) {
+            tex = texFadaVoando2;
+        } else if (andando) {
+            tex = texFadaAndando;
+        } else {
+            tex = texFadaParada;
+        }
         float w = larguraDe(tex);
         float h = alturaDe(tex);
 
@@ -104,7 +133,7 @@ public class Main extends ApplicationAdapter {
         boolean flip = andando && !viradaParaDireita;
 
         lote.draw(tex,
-                fadaX - w / 2f, CHAO_Y + pulo, w, h,
+                fadaX - w / 2f, fadaY + pulo, w, h,
                 0, 0, tex.getWidth(), tex.getHeight(),
                 flip, false);
     }
@@ -142,5 +171,7 @@ public class Main extends ApplicationAdapter {
         texCenario.dispose();
         texFadaParada.dispose();
         texFadaAndando.dispose();
+        texFadaVoando1.dispose();
+        texFadaVoando2.dispose();
     }
 }
