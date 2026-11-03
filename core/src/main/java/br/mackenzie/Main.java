@@ -5,8 +5,10 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.Cursor;
 import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Rectangle;
@@ -23,6 +25,7 @@ public class Main extends ApplicationAdapter {
     private static final float PLAY_X = 6.02f;
     private static final float PLAY_Y = 0.95f;
     private static final float PLAY_RAIO = 0.28f;
+    private static final Rectangle MENU_TEXTO_INICIAR = new Rectangle(4.27f, 1.00f, 1.40f, 0.36f);
     private static final boolean DEBUG_HITBOX = false;
     private static final Rectangle BTN_INICIAR = new Rectangle(6.07f, 3.90f, 0.51f, 0.46f);
     private static final Rectangle BTN_PAUSAR = new Rectangle(6.68f, 3.90f, 0.52f, 0.46f);
@@ -45,6 +48,8 @@ public class Main extends ApplicationAdapter {
 
     private Texture texMenu;
     private Texture texCenario;
+    private Texture texBotoes;
+    private final TextureRegion[] regBotoes = new TextureRegion[3]; // [0] Iniciar, [1] Pausar, [2] Reiniciar
     private Texture texFadaParada;
     private Texture texFadaAndando;
     private Texture texFadaVoando1;
@@ -70,6 +75,8 @@ public class Main extends ApplicationAdapter {
 
         texMenu = carregar("Menu.jpg");
         texCenario = carregar("CenárioPrincipal.jpg");
+        texBotoes = carregar("BotoesReutilizaveis.png");
+        recortarBotoes("BotoesReutilizaveis.png");
         texFadaParada = carregar("Fada Estatica.png");
         texFadaAndando = carregar("Fada Andando.png");
         texFadaVoando1 = carregar("Fada Voandinho1.png");
@@ -80,6 +87,77 @@ public class Main extends ApplicationAdapter {
         Texture t = new Texture(Gdx.files.internal(arquivo));
         t.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
         return t;
+    }
+
+    private void recortarBotoes(String arquivo) {
+        Pixmap pm = new Pixmap(Gdx.files.internal(arquivo));
+        int larguraImagem = pm.getWidth();
+        int alturaImagem = pm.getHeight();
+        boolean[] colunasVisiveis = new boolean[larguraImagem];
+        int xMinimo = larguraImagem;
+        int xMaximo = -1;
+        int yMinimo = alturaImagem;
+        int yMaximo = -1;
+
+        for (int x = 0; x < larguraImagem; x++) {
+            for (int y = 0; y < alturaImagem; y++) {
+                if ((pm.getPixel(x, y) & 0xff) > 40) {
+                    colunasVisiveis[x] = true;
+                    xMinimo = Math.min(xMinimo, x);
+                    xMaximo = Math.max(xMaximo, x);
+                    yMinimo = Math.min(yMinimo, y);
+                    yMaximo = Math.max(yMaximo, y);
+                }
+            }
+        }
+
+        int quantidadeBotoes = 0;
+        int larguraMinima = larguraImagem / 20;
+        int x = 0;
+        while (x < larguraImagem && quantidadeBotoes < regBotoes.length) {
+            while (x < larguraImagem && !colunasVisiveis[x]) {
+                x++;
+            }
+            int xInicio = x;
+            while (x < larguraImagem && colunasVisiveis[x]) {
+                x++;
+            }
+            int larguraBotao = x - xInicio;
+            if (larguraBotao < larguraMinima) {
+                continue;
+            }
+
+            int yTopo = alturaImagem;
+            int yBase = -1;
+            for (int coluna = xInicio; coluna < x; coluna++) {
+                for (int linha = 0; linha < alturaImagem; linha++) {
+                    if ((pm.getPixel(coluna, linha) & 0xff) > 40) {
+                        yTopo = Math.min(yTopo, linha);
+                        yBase = Math.max(yBase, linha);
+                    }
+                }
+            }
+            regBotoes[quantidadeBotoes++] = new TextureRegion(
+                    texBotoes, xInicio, yTopo, larguraBotao, yBase - yTopo + 1);
+        }
+
+        if (quantidadeBotoes != regBotoes.length) {
+            Gdx.app.log("Main", "Esperados 3 botoes, encontrados " + quantidadeBotoes
+                    + "; usando divisao do limite visivel.");
+            int xEsquerda = xMinimo <= xMaximo ? xMinimo : 0;
+            int yTopo = yMinimo <= yMaximo ? yMinimo : 0;
+            int larguraVisivel = xMinimo <= xMaximo ? xMaximo - xMinimo + 1 : larguraImagem;
+            int alturaVisivel = yMinimo <= yMaximo ? yMaximo - yMinimo + 1 : alturaImagem;
+            int larguraParte = larguraVisivel / regBotoes.length;
+            for (int i = 0; i < regBotoes.length; i++) {
+                int xParte = xEsquerda + i * larguraParte;
+                int larguraParteAtual = i == regBotoes.length - 1
+                        ? xEsquerda + larguraVisivel - xParte : larguraParte;
+                regBotoes[i] = new TextureRegion(texBotoes, xParte, yTopo,
+                        larguraParteAtual, alturaVisivel);
+            }
+        }
+        pm.dispose();
     }
 
     @Override
@@ -161,6 +239,9 @@ public class Main extends ApplicationAdapter {
         lote.begin();
         lote.draw(texCenario, 0, 0, LARGURA_MUNDO, ALTURA_MUNDO);
         desenharFada();
+        lote.draw(regBotoes[0], BTN_INICIAR.x, BTN_INICIAR.y, BTN_INICIAR.width, BTN_INICIAR.height);
+        lote.draw(regBotoes[1], BTN_PAUSAR.x, BTN_PAUSAR.y, BTN_PAUSAR.width, BTN_PAUSAR.height);
+        lote.draw(regBotoes[2], BTN_REINICIAR.x, BTN_REINICIAR.y, BTN_REINICIAR.width, BTN_REINICIAR.height);
         lote.end();
 
         // Barra de força (teste do sensor), por cima do cenário
@@ -196,6 +277,12 @@ public class Main extends ApplicationAdapter {
         tempoAndando = 0f;
     }
 
+    private void voltarAoMenu() {
+        estado = Estado.MENU;
+        pausado = false;
+        atualizarCursor(Cursor.SystemCursor.Arrow);
+    }
+
     private Rectangle botaoSobMouse() {
         if (BTN_REINICIAR.contains(toque)) {
             return BTN_REINICIAR;
@@ -205,12 +292,6 @@ public class Main extends ApplicationAdapter {
             return BTN_PAUSAR;
         }
         return null;
-    }
-
-    private void voltarAoMenu() {
-        estado = Estado.MENU;
-        pausado = false;
-        atualizarCursor(Cursor.SystemCursor.Arrow);
     }
 
     private void atualizarCursor(Cursor.SystemCursor cursor) {
@@ -239,7 +320,7 @@ public class Main extends ApplicationAdapter {
 
     private void desenharMenu() {
         viewport.unproject(toque.set(Gdx.input.getX(), Gdx.input.getY()));
-        boolean sobrePlay = toque.dst(PLAY_X, PLAY_Y) <= PLAY_RAIO;
+        boolean sobrePlay = toque.dst(PLAY_X, PLAY_Y) <= PLAY_RAIO || MENU_TEXTO_INICIAR.contains(toque);
         atualizarCursor(sobrePlay ? Cursor.SystemCursor.Hand : Cursor.SystemCursor.Arrow);
 
         if (Gdx.input.justTouched() && sobrePlay) {
@@ -264,6 +345,8 @@ public class Main extends ApplicationAdapter {
             desenhador.begin(ShapeRenderer.ShapeType.Line);
             desenhador.setColor(1f, 1f, 1f, 1f);
             desenhador.circle(PLAY_X, PLAY_Y, PLAY_RAIO);
+                desenhador.rect(MENU_TEXTO_INICIAR.x, MENU_TEXTO_INICIAR.y,
+                    MENU_TEXTO_INICIAR.width, MENU_TEXTO_INICIAR.height);
             desenhador.end();
         }
     }
@@ -285,9 +368,6 @@ public class Main extends ApplicationAdapter {
                 boolean estavaPausado = pausado;
                 atualizarEntradaFase1();
                 if (estado == Estado.MENU) {
-                    lote.begin();
-                    lote.draw(texMenu, 0, 0, LARGURA_MUNDO, ALTURA_MUNDO);
-                    lote.end();
                     break;
                 }
                 if (!estavaPausado && !pausado) {
@@ -306,6 +386,7 @@ public class Main extends ApplicationAdapter {
         lote.dispose();
         texMenu.dispose();
         texCenario.dispose();
+        texBotoes.dispose();
         texFadaParada.dispose();
         texFadaAndando.dispose();
         texFadaVoando1.dispose();
