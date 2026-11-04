@@ -21,4 +21,9 @@ public class KeyboardForceInput implements ForceInput {
         }
         return forca;
     }
+
+    @Override
+    public void reset() {
+        forca = 0f;
+    }
 }
