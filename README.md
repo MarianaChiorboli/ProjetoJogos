@@ -41,7 +41,7 @@ Os alvos de força são **moderados** e definidos por **calibração individual*
 | Fase | Desafio | Habilidade treinada |
 |---|---|---|
 | **1** | Flores todas na mesma altura | Força constante |
-| **2** | Flores em alturas diferentes | Ajuste da força |
+| **2** | Jardim em recuperação: explorar um cenário amplo e recuperar duas flores | Exploração e controle da força |
 | **3** | Alturas diferentes, mais rápido e faixa-alvo mais estreita | Precisão |
 
 ### Pontuação e métricas
