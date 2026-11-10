@@ -1,149 +1,108 @@
-# 🌸 FloraLume
+# FloraLume
 
-**Jogo sério para reabilitação da função da mão em crianças com lúpus eritematoso sistêmico juvenil (LESj), controlado por um sensor de pressão (ESP32 + FSR 402) e desenvolvido em libGDX.**
+Jogo desenvolvido em **libGDX** como ferramenta de apoio à **reabilitação e fisioterapia da função da mão em crianças com lúpus eritematoso sistêmico juvenil (LESj)**. O jogo trabalha o controle graduado da força de preensão: a criança controla a altura de Lumi, uma pequena fada, usando um sensor de pressão **FSR 402** conectado a um **ESP32**. A placa envia as leituras ao jogo pela porta serial USB.
 
-> Projeto Final da disciplina de Jogos Digitais — Sistemas de Informação, Universidade Presbiteriana Mackenzie.
-> Professor: Leandro Puppo 
+Projeto Final da disciplina de Jogos Digitais — Sistemas de Informação, Universidade Presbiteriana Mackenzie.
+Professor: Leandro Puppo.
 
----
+> O FloraLume é uma ferramenta de apoio à reabilitação; não substitui tratamento. O uso deve respeitar os limites da criança e ter acompanhamento de um profissional de saúde.
 
-## 📖 Sobre o jogo
+## Sobre o jogo
 
-No FloraLume, a criança guia **Lumi**, uma pequena fada, por um jardim encantado que adormeceu e perdeu suas cores. Lumi voa sozinha para a frente, e **a força que a criança aplica no sensor controla a altura dela**: apertar mais faz Lumi subir e aliviar faz Lumi descer.
+Lumi voa pelo jardim e a força aplicada ao sensor controla sua altura: apertar mais faz Lumi subir; aliviar a pressão faz Lumi descer. Para despertar as flores, é preciso manter Lumi na altura delas enquanto passa por cada uma.
 
-Para despertar cada flor, a criança precisa levar Lumi até a altura da flor e mantê-la ali. Assim, o exercício de **controle graduado da força de preensão** é a própria mecânica do jogo.
-
-### Problema de reabilitação
-
-O LESj frequentemente causa artrite e dor nas articulações das mãos e punhos, com redução da força de preensão e fadiga. O FloraLume trabalha:
-
-- **Foco principal:** controle graduado da força de preensão (aplicar a força certa, nem fraca nem forte demais, e mantê-la estável).
-- **Aspecto secundário:** coordenação motora fina e precisão.
-
-Os alvos de força são **moderados** e definidos por **calibração individual**, para respeitar a dor articular e a fadiga de cada criança.
-
-> ⚠️ O FloraLume é uma ferramenta de apoio à reabilitação. Ele não substitui o tratamento e deve ser usado fora de períodos de crise, com acompanhamento de um profissional de saúde.
-
----
-
-## 🎮 Como jogar
-
-| Ação | Como fazer |
-|---|---|
-| Subir / descer | Aumentar / diminuir a força no sensor |
-| Despertar uma flor | Manter Lumi na altura da flor enquanto passa por ela |
-| Trocar opção no menu | Aperto curto |
-| Confirmar opção | Aperto longo |
-| Pausar | Soltar o sensor por 3 segundos |
+O foco é o controle graduado da força de preensão; coordenação motora fina e precisão são aspectos complementares. Os alvos devem ser moderados e calibrados individualmente, considerando conforto, dor e fadiga.
 
 ### Fases
 
-| Fase | Desafio | Habilidade treinada |
+| Fase | Desafio | Habilidade trabalhada |
 |---|---|---|
-| **1** | Flores todas na mesma altura | Força constante |
-| **2** | Jardim em recuperação: explorar um cenário amplo e recuperar duas flores | Exploração e controle da força |
-| **3** | Alturas diferentes, mais rápido e faixa-alvo mais estreita | Precisão |
+| 1 | Flores na mesma altura | Controle de força constante |
+| 2 | Explorar um cenário amplo e recuperar duas flores | Exploração e controle da força |
+| 3 | Flores em alturas diferentes, maior velocidade e faixa-alvo mais estreita | Precisão |
 
-### Pontuação e métricas
+O jogo registra métricas de velocidade de resposta e consistência da força em relação à faixa-alvo, e apresenta uma comparação do desempenho nas três fases.
 
-- **Velocidade:** tempo de resposta até Lumi atingir a altura de cada flor.
-- **Consistência:** variação da força em relação à faixa-alvo enquanto Lumi passa pela flor.
+## Tecnologias
 
-Ao final, uma tela compara o desempenho nas 3 fases para mostrar a evolução da jogadora.
+- Java 8
+- libGDX
+- Gradle
+- jSerialComm 2.11.0
+- ESP32 com firmware para Arduino IDE
+- Sensor de pressão FSR 402
 
----
+## Hardware e montagem
 
-## 🔌 Hardware
+### Componentes
 
 | Componente | Quantidade |
-|---|---|
+|---|---:|
 | ESP32 DevKit V1 | 1 |
 | Sensor de pressão FSR 402 | 1 |
-| Protoboard | 1 |
-| Resistor de 10 kΩ | 1 (opcional; recomendado para maior linearidade e estabilidade) |
-| Fios jumper (macho-macho / macho-fêmea) | 1 kit |
+| Protoboard e fios jumper | 1 conjunto |
 | Cabo USB de dados | 1 |
 
-### Montagem
+### Ligação padrão (sem resistor externo)
 
-Ligue uma perna do FSR ao GPIO32 e a outra ao GND, sem resistor externo, usando o pull-up interno do ESP32. Como o pull-up faz a leitura cair ao apertar o sensor, o firmware inverte o valor antes de enviá-lo. A comunicação USB serial usa 115200 baud.
+Conecte uma perna do FSR ao **GPIO32** e a outra ao **GND**. O FSR não tem polaridade. Esta montagem usa o pull-up interno do ESP32. Como a leitura elétrica cai quando o sensor é pressionado, o firmware inverte o valor antes de enviá-lo ao jogo.
 
-Para maior linearidade e estabilidade, recomenda-se um resistor de 10 kΩ: nesse caso, ligue o FSR entre 3V3 e o GPIO34 e o resistor entre o GPIO34 e o GND. Nessa montagem alternativa, remova a inversão da leitura no firmware.
+O ESP32 envia uma leitura inteira por linha, de 0 a 4095, pela USB serial a **115200 baud**.
 
----
+## Firmware do ESP32
 
-## 🛠️ Tecnologias
+1. Instale o pacote de placas **esp32**, da Espressif, no Arduino IDE.
+2. Selecione **ESP32 Dev Module** como placa.
+3. Abra [`firmware/FloraLume/FloraLume.ino`](firmware/FloraLume/FloraLume.ino) e grave o programa no ESP32.
+4. Se quiser conferir as leituras, abra o Serial Monitor em **115200 baud**.
+5. **Feche o Serial Monitor antes de iniciar o jogo.** Apenas um programa pode usar a porta serial de cada vez.
 
-- libGDX
-- Java 8
-- Gradle
-- jSerialComm
-- ESP32 (Arduino IDE)
-- FSR 402
+## Executar o jogo
 
----
-
-## 🚀 Como executar
-
-### 1. Firmware do ESP32
-
-1. Instale o pacote **esp32** da Espressif no Arduino IDE.
-2. Selecione a placa **ESP32 Dev Module**.
-3. Abra e grave [`firmware/FloraLume/FloraLume.ino`](firmware/FloraLume/FloraLume.ino).
-4. Confira os valores no Serial Monitor a 115200 baud.
-5. Feche o Serial Monitor antes de iniciar o jogo: apenas um programa por vez pode usar a porta serial.
-
-### 2. Jogo
-
-Na raiz do projeto, execute:
+Na raiz do repositório, inicie com detecção automática da porta serial:
 
 ```bash
 ./gradlew lwjgl3:run
 ```
 
-O jogo detecta automaticamente a porta do ESP32. Para especificar uma porta:
+No Windows PowerShell, o comando equivalente é:
+
+```powershell
+.\gradlew lwjgl3:run
+```
+
+Para escolher uma porta específica, passe seu nome como argumento (por exemplo, `COM3` ou `COM8`):
 
 ```bash
 ./gradlew lwjgl3:run --args="COM3"
 ```
 
-O ESP32 deve estar conectado para que o jogo receba leituras do sensor.
+## Leitura serial e calibração
 
-### Calibração
+A classe `SerialForceInput`, no módulo `lwjgl3`, implementa a interface de entrada de força usada pelo jogo. Ela:
 
-Com `DEBUG = true`, os valores brutos aparecem no console. Anote a leitura com o sensor solto e com a força máxima confortável da criança; ajuste `LEITURA_REPOUSO` e `LEITURA_MAXIMA` em `SerialForceInput` para esses valores.
+- Detecta automaticamente dispositivos cuja descrição contenha CP210, CH340, CH910, Silicon Labs ou USB, ou usa a porta informada como argumento.
+- Configura a comunicação para **115200 baud, 8 bits, sem paridade e 1 stop bit**.
+- Ignora linhas inválidas e leituras fora do intervalo 0–4095; aplica um filtro de mediana em uma janela de cinco amostras.
+- Tenta se reconectar a cada dois segundos se a porta não estiver disponível ou a conexão for interrompida.
+- Exibe leituras e informações de conexão no console quando `DEBUG` está habilitado. Se a porta não abrir, o log inclui o código de erro; no Windows, código 5 indica acesso negado, geralmente porque outro programa está usando a porta.
 
----
+Para calibrar, habilite `DEBUG` em `SerialForceInput.java`, anote os valores brutos com o sensor solto e com a força máxima confortável da criança, e ajuste `LEITURA_REPOUSO` e `LEITURA_MAXIMA`. A resposta também pode ser ajustada por `CURVA`, `VELOCIDADE_SUBIDA` e `VELOCIDADE_DESCIDA`. Faça a calibração com cuidado e sem exigir esforço desconfortável.
 
-## 📁 Estrutura do projeto
+## Estrutura do repositório
 
+```text
+core/       Lógica do jogo, telas, fases e interface ForceInput
+lwjgl3/     Aplicação desktop, launcher e leitura serial do sensor
+assets/     Imagens, sons e demais recursos do jogo
+firmware/   Código do ESP32
 ```
-floralume/
-├── core/        # Lógica do jogo (telas, Lumi, fases, métricas, leitura do sensor)
-├── lwjgl3/      # Launcher desktop
-├── assets/      # Sprites, fundos, fontes e sons
-├── firmware/    # Código do ESP32 (.ino)
-└── docs/        # OnePage, short paper e prints de tela
-```
 
----
+## Equipe
 
-## 🗂️ Organização
+- Mariana Chiorboli
+- Yasmin Mendes
 
-- **Kanban** 
-- **Commits:** `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`
-
----
-
-## 👩‍💻 Equipe
-
-| Integrante |
-|---|
-| Mariana Chiorboli |
-| Yasmin Mendes |
-
----
-
-## 📄 Licença
+## Licença
 
 Projeto acadêmico, sem fins comerciais. Personagens, cenários e identidade visual são originais.
