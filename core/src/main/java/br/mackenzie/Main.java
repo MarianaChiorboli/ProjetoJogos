@@ -72,6 +72,7 @@
         private static final float PLAY_Y = 0.95f;
         private static final float PLAY_RAIO = 0.28f;
         private static final Rectangle MENU_TEXTO_INICIAR = new Rectangle(4.27f, 1.00f, 1.40f, 0.36f);
+        private static final Rectangle BTN_SOM = new Rectangle(7.06f, 3.68f, 0.56f, 0.48f);
         private static final boolean DEBUG_HITBOX = false;
         private static final Rectangle BTN_PAUSAR = new Rectangle(7.04f, 3.81f, 0.56f, 0.48f);
         private static final Rectangle BTN_PAUSA_CONTINUAR = new Rectangle(3.05f, 2.42f, 1.90f, 0.78f);
@@ -90,6 +91,7 @@
         private int faseAtual = 1;
         private boolean pausado = false;
         private boolean nivelConcluido = false;
+        private boolean somMutado = false;
         private float forcaAtual;
         private Music musicaMenu;
         private Music musicaJardim;
@@ -117,6 +119,8 @@
         private final Texture[] texFloresVivasFase3 = new Texture[QTD_FLORES_FASE3];
         private Texture texPausa;
         private Texture texBotaoPausar;
+        private Texture texSomLigado;
+        private Texture texSomDesligado;
         private Texture texFadaParada;
         private Texture texFadaAndando;
         private Texture texFadaRegando;
@@ -181,6 +185,8 @@
             texFadaRegando = carregar("Fada Regando.png");
             texFadaVoando1 = carregar("Fada Voandinho1.png");
             texFadaVoando2 = carregar("Fada Voandinho2.png");
+            texSomLigado = carregar("SomLigado.png");
+            texSomDesligado = carregar("SomDesligado.png");
             musicaMenu = carregarMusica("menu.mp3", true);
             musicaJardim = carregarMusica("jardim.mp3", true);
             somPassouFase = carregarMusica("passou de fase.mp3", false);
@@ -779,15 +785,20 @@
         private void desenharMenu() {
             viewport.unproject(toque.set(Gdx.input.getX(), Gdx.input.getY()));
             boolean sobrePlay = toque.dst(PLAY_X, PLAY_Y) <= PLAY_RAIO || MENU_TEXTO_INICIAR.contains(toque);
-            atualizarCursor(sobrePlay ? Cursor.SystemCursor.Hand : Cursor.SystemCursor.Arrow);
+            boolean sobreSom = BTN_SOM.contains(toque);
+            atualizarCursor(sobrePlay || sobreSom ? Cursor.SystemCursor.Hand : Cursor.SystemCursor.Arrow);
 
-            if (Gdx.input.justTouched() && sobrePlay) {
+            if (Gdx.input.justTouched() && sobreSom) {
+                somMutado = !somMutado;
+            } else if (Gdx.input.justTouched() && sobrePlay) {
                 iniciarFase1();
                 return;
             }
 
             lote.begin();
             lote.draw(texMenu, 0, 0, LARGURA_MUNDO, ALTURA_MUNDO);
+            lote.draw(somMutado ? texSomDesligado : texSomLigado,
+                    BTN_SOM.x, BTN_SOM.y, BTN_SOM.width, BTN_SOM.height);
             lote.end();
 
             if (sobrePlay) {
@@ -806,6 +817,7 @@
                 desenhador.circle(PLAY_X, PLAY_Y, PLAY_RAIO);
                 desenhador.rect(MENU_TEXTO_INICIAR.x, MENU_TEXTO_INICIAR.y,
                         MENU_TEXTO_INICIAR.width, MENU_TEXTO_INICIAR.height);
+                desenhador.rect(BTN_SOM.x, BTN_SOM.y, BTN_SOM.width, BTN_SOM.height);
                 desenhador.end();
             }
         }
@@ -871,6 +883,12 @@
         }
 
         private void atualizarAudio() {
+            float volume = somMutado ? 0f : 1f;
+            musicaMenu.setVolume(volume);
+            musicaJardim.setVolume(volume);
+            somPassouFase.setVolume(volume);
+            somRegar.setVolume(volume);
+
             boolean emFase = estado == Estado.FASE1 || estado == Estado.FASE2 || estado == Estado.FASE3;
             boolean telaConclusao = estado == Estado.NIVEL_CONCLUIDO || estado == Estado.FIM_DE_JOGO;
             boolean tocarMenu = estado == Estado.MENU || (emFase && pausado);
@@ -913,6 +931,8 @@
             somRegar.dispose();
             desenhador.dispose();
             lote.dispose();
+            texSomLigado.dispose();
+            texSomDesligado.dispose();
             texMenu.dispose();
             texCenario.dispose();
             texCenarioFase2.dispose();
