@@ -15,7 +15,7 @@
     import com.badlogic.gdx.utils.viewport.FitViewport;
 
     public class Main extends ApplicationAdapter {
-        private enum Estado { MENU, FASE1, FASE2, FASE3, NIVEL_CONCLUIDO, FIM_DE_JOGO }
+        private enum Estado { MENU, FASE1, FASE2, FASE3, NIVEL_CONCLUIDO, FIM_DE_JOGO, RESULTADOS }
 
         private static final float LARGURA_MUNDO = 8.0f;
         private static final float ALTURA_MUNDO = 4.5f;   // 16:9, igual ao cenário
@@ -53,7 +53,8 @@
         private static final float ALCANCE_X_DESLOCAMENTO = 0.25f; // a mão da Lumi fica um pouco à direita do corpo
         private static final float FATOR_VELOCIDADE_REGANDO = 0.2f;  // o cenário desacelera enquanto ela rega
         private static final float DECAIMENTO_PROGRESSO = 0.5f; // ao sair da luz, o progresso cai devagar
-        private static final float DISTANCIA_SAIDA_TELA = 1.5f; // flor passou deste ponto à esquerda = "volta mais tarde"
+        private static final float DISTANCIA_SAIDA_TELA = 0.7f; // flor passou deste ponto à esquerda = "volta mais tarde"
+        private static final float MARGEM_RETORNO = 0.8f;       // a flor que volta reaparece logo depois da borda direita
         private static final float DURACAO_TRANSFORMACAO_FLOR = 0.4f;
 
         // ---- Configuração de cada fase (índice 0 = fase 1) — Tabela 2 do artigo ----
@@ -87,8 +88,13 @@
         private static final Rectangle BTN_PROXIMA_FASE = new Rectangle(2.85f, 1.00f, 2.40f, 0.62f);
         private static final Rectangle BTN_JOGAR_NOVAMENTE = new Rectangle(3.05f, 0.52f, 1.90f, 0.46f);
         // Tela final (ajuste conforme a arte que você criar; use DEBUG_HITBOX para ver)
-        private static final Rectangle BTN_FINAL_REINICIAR = new Rectangle(3.05f, 0.68f, 1.90f, 0.48f);
-        private static final Rectangle BTN_FINAL_MENU = new Rectangle(2.90f, 1.10f, 2.20f, 0.55f);
+        // Tela "Você restaurou o jardim!" (3 botões)
+        private static final Rectangle BTN_FINAL_RESULTADOS = new Rectangle(3.05f, 1.07f, 1.88f, 0.39f);
+        private static final Rectangle BTN_FINAL_REINICIAR = new Rectangle(2.98f, 0.60f, 0.98f, 0.35f);
+        private static final Rectangle BTN_FINAL_MENU = new Rectangle(4.03f, 0.60f, 0.98f, 0.35f);
+        // Tela de resultados
+        private static final Rectangle BTN_RESULTADOS_MENU = new Rectangle(2.40f, 0.37f, 1.50f, 0.36f);
+        private static final Rectangle BTN_RESULTADOS_JOGAR = new Rectangle(4.10f, 0.37f, 1.50f, 0.36f);
         private static final boolean ESCURECER_NA_PAUSA = true;
         private static final float PAUSA_ESCURECIMENTO = 0.45f;
 
@@ -100,7 +106,34 @@
         private static final float TEXTO_CONTADOR_CENTRO_X = 1.0f;  // centro do texto, medido da borda esquerda do painel
         private static final float ALTURA_NUMERO = 0.3625f;
         private static final float ESPACAMENTO_NUMERO = 0.9f;       // 1 = células encostadas; menor = mais juntas
-        private static final String CARACTERES_CONTADOR = "0123456789/:";
+        private static final String CARACTERES_CONTADOR = "0123456789/:,%s";
+
+        // ==================================================================
+        // MÉTRICAS (seção 3.4 do artigo) e ESTRELAS
+        // ==================================================================
+        // Firmeza = 1 - (desvio padrão da força enquanto rega / SIGMA_REFERENCIA_FIRMEZA), entre 0 e 1.
+        // Desvio igual ou maior que a referência = firmeza 0%.
+        private static final float SIGMA_REFERENCIA_FIRMEZA = 0.10f;
+        // Estrelas: 1 por terminar + 1 se nenhuma flor voltou + 1 se firmeza >= este valor
+        private static final float FIRMEZA_PARA_ESTRELA = 0.70f;
+        // Frases de incentivo: melhora mínima (em relação à fase 1) para a frase aparecer
+        private static final float MELHORA_MINIMA_FIRMEZA = 0.05f;   // 5 pontos percentuais
+        private static final float MELHORA_MINIMA_CHEGADA = 0.3f;    // segundos
+
+        // ---- Layout da tela de resultados (coordenadas do mundo, medidas na arte) ----
+        private static final float RESULTADO_COLUNA_X = 1.40f;       // borda esquerda da coluna da fase 1
+        private static final float RESULTADO_COLUNA_PASSO = 1.775f;  // distância entre colunas
+        private static final float RESULTADO_COLUNA_W = 1.65f;
+        private static final float RESULTADO_ESTRELAS_Y = 2.725f;    // centro das estrelas
+        private static final float RESULTADO_ESTRELA_TAM = 0.33f;
+        private static final float RESULTADO_ESTRELA_PASSO = 0.35f;
+        private static final float RESULTADO_LINHA1_Y = 2.35f;       // centro da 1ª linha (Tempo)
+        private static final float RESULTADO_LINHA_PASSO = 0.31f;
+        private static final float RESULTADO_VALOR_MARGEM = 0.14f;   // distância do valor até a borda direita
+        private static final float RESULTADO_ALTURA_NUMERO = 0.24f;
+        private static final float RESULTADO_FRASE_Y = 0.89f;
+        private static final float RESULTADO_FRASE_W = 5.0f;
+        private static final float RESULTADO_FRASE_H = 0.30f;
 
         // ---- Tempo da fase (canto superior esquerdo, só nas fases) ----
         private static final float PAINEL_TEMPO_X = 0.0625f;
@@ -148,8 +181,13 @@
         private Texture texSomDesligado;
         private Texture texPainelContador;
         private Texture texPainelTempo;
+        private Texture texResultadosFundo;
+        private Texture texEstrelaCheia;
+        private Texture texEstrelaVazia;
+        private Texture texFraseFirmeza2, texFraseFirmeza3, texFraseChegada2, texFraseChegada3;
+        private Texture texFrasePrimeira, texFraseGeral;
         private Texture texNumerosContador;
-        private final TextureRegion[] regNumeros = new TextureRegion[12];   // 0-9, / e :
+        private final TextureRegion[] regNumeros = new TextureRegion[15];   // 0-9 / : , % s
         private Texture texLuzMagica;
         private Texture texFadaParada;
         private Texture texFadaRegando;
@@ -178,6 +216,23 @@
         private boolean[] florRecuperada;
         private float[] animacaoFlor;
         private boolean conclusaoPendente;
+
+        // ---- Métricas de cada flor (da passada em que ela despertou) ----
+        private float[] inicioPassada;      // tempoFase quando a luz entrou na tela (-1 = ainda não)
+        private float[] chegadaPassada;     // segundos até a Lumi tocar a luz nesta passada (-1 = ainda não)
+        private float[] chegadaFlor;        // chegada da passada em que a flor despertou
+        private float[] firmezaFlor;        // 0..1
+        private double[] somaForca;
+        private double[] somaForcaQuadrado;
+        private int[] amostrasForca;
+
+        // ---- Resultado de cada fase (índice 0 = fase 1) ----
+        private final boolean[] resultadoValido = new boolean[3];
+        private final float[] resultadoTempo = new float[3];
+        private final float[] resultadoChegada = new float[3];
+        private final float[] resultadoFirmeza = new float[3];
+        private final int[] resultadoVoltas = new int[3];
+        private final int[] resultadoEstrelas = new int[3];
 
         public Main(ForceInput entradaForca) {
             this.entradaForca = entradaForca;
@@ -215,8 +270,17 @@
             texSomDesligado = carregar("SomDesligado.png");
             texPainelContador = carregar("PainelContador.png");
             texPainelTempo = carregar("PainelTempo.png");
+            texResultadosFundo = carregar("resultados/ResultadosFundo.jpg");
+            texEstrelaCheia = carregar("resultados/EstrelaCheia.png");
+            texEstrelaVazia = carregar("resultados/EstrelaVazia.png");
+            texFraseFirmeza2 = carregar("resultados/FraseFirmeza2.png");
+            texFraseFirmeza3 = carregar("resultados/FraseFirmeza3.png");
+            texFraseChegada2 = carregar("resultados/FraseChegada2.png");
+            texFraseChegada3 = carregar("resultados/FraseChegada3.png");
+            texFrasePrimeira = carregar("resultados/FrasePrimeira.png");
+            texFraseGeral = carregar("resultados/FraseGeral.png");
             texNumerosContador = carregar("NumerosContador.png");
-            // A imagem tem 12 células do mesmo tamanho: 0 1 2 3 4 5 6 7 8 9 / :
+            // A imagem tem 15 células do mesmo tamanho: 0 1 2 3 4 5 6 7 8 9 / : , % s
             int larguraCelula = texNumerosContador.getWidth() / regNumeros.length;
             for (int i = 0; i < regNumeros.length; i++) {
                 regNumeros[i] = new TextureRegion(texNumerosContador, i * larguraCelula, 0,
@@ -310,7 +374,16 @@
             tentativasFlor = new int[quantidade];
             florRecuperada = new boolean[quantidade];
             animacaoFlor = new float[quantidade];
+            inicioPassada = new float[quantidade];
+            chegadaPassada = new float[quantidade];
+            chegadaFlor = new float[quantidade];
+            firmezaFlor = new float[quantidade];
+            somaForca = new double[quantidade];
+            somaForcaQuadrado = new double[quantidade];
+            amostrasForca = new int[quantidade];
             for (int i = 0; i < quantidade; i++) {
+                inicioPassada[i] = -1f;
+                chegadaPassada[i] = -1f;
                 florX[i] = PRIMEIRA_FLOR_X_TELA + i * ESPACO_ENTRE_FLORES;
                 tentativasFlor[i] = 1;
                 animacaoFlor[i] = DURACAO_TRANSFORMACAO_FLOR;
@@ -362,12 +435,16 @@
             return dx <= ALCANCE_X && dy <= TOLERANCIA_ALTURA * ESCALA_LUZ[indiceFase()];
         }
 
-        private float posicaoMaisADireita() {
-            float maior = deslocamento + LARGURA_MUNDO;
-            for (float x : florX) {
-                maior = Math.max(maior, x);
+        // Onde a flor i reaparece: logo depois da borda direita da tela,
+        // mas sempre a uma distância segura das outras flores que ainda estão chegando
+        private float posicaoDeRetorno(int i) {
+            float posicao = deslocamento + LARGURA_MUNDO + MARGEM_RETORNO;
+            for (int j = 0; j < florX.length; j++) {
+                if (j != i) {
+                    posicao = Math.max(posicao, florX[j] + ESPACO_ENTRE_FLORES);
+                }
             }
-            return maior;
+            return posicao;
         }
 
         private void atualizarFase(float delta) {
@@ -395,6 +472,8 @@
 
             tempoFase += delta;   // para quando a última flor desperta (conclusaoPendente)
 
+            medirChegada();
+
             // Rega: a Lumi está tocando a luz de alguma flor seca?
             tocandoLuz = false;
             for (int i = 0; i < florX.length; i++) {
@@ -403,13 +482,20 @@
                 }
                 if (lumiTocaLuz(i)) {
                     tocandoLuz = true;
+                    // Consistência: guarda a força enquanto rega
+                    somaForca[i] += forcaAtual;
+                    somaForcaQuadrado[i] += (double) forcaAtual * forcaAtual;
+                    amostrasForca[i]++;
                     progressoFlor[i] += delta / TEMPO_DESPERTAR[indice];
                     if (progressoFlor[i] >= 1f) {
                         progressoFlor[i] = 1f;
                         florRecuperada[i] = true;
                         animacaoFlor[i] = 0f;
+                        chegadaFlor[i] = Math.max(0f, chegadaPassada[i]);
+                        firmezaFlor[i] = calcularFirmeza(i);
                         Gdx.app.log("Fase" + faseAtual, "Flor " + (i + 1) + " despertou (tentativas: "
-                                + tentativasFlor[i] + ")");
+                                + tentativasFlor[i] + ", chegada: " + chegadaFlor[i] + " s, firmeza: "
+                                + Math.round(firmezaFlor[i] * 100) + "%)");
                     }
                 } else if (progressoFlor[i] > 0f) {
                     progressoFlor[i] = Math.max(0f,
@@ -424,9 +510,15 @@
             // Flor que passou sem despertar "volta mais tarde", entrando de novo pela direita
             for (int i = 0; i < florX.length; i++) {
                 if (!florRecuperada[i] && luzXNaTela(i) < -DISTANCIA_SAIDA_TELA) {
-                    florX[i] = posicaoMaisADireita() + ESPACO_ENTRE_FLORES;
+                    florX[i] = posicaoDeRetorno(i);
                     progressoFlor[i] = 0f;
                     tentativasFlor[i]++;
+                    // nova passada: as métricas recomeçam para esta flor
+                    inicioPassada[i] = -1f;
+                    chegadaPassada[i] = -1f;
+                    somaForca[i] = 0;
+                    somaForcaQuadrado[i] = 0;
+                    amostrasForca[i] = 0;
                     Gdx.app.log("Fase" + faseAtual, "Flor " + (i + 1) + " passou; volta mais tarde");
                 }
             }
@@ -437,7 +529,76 @@
             }
         }
 
+        // Velocidade (artigo, 3.4): tempo que a criança leva para levar a Lumi até a ALTURA da próxima flor.
+        // O relógio começa quando a luz dessa flor aparece na tela (e ela é a próxima a ser regada)
+        // e para quando a Lumi entra na faixa de altura da luz.
+        private void medirChegada() {
+            float limiteEsquerdo = FADA_X_TELA + ALCANCE_X_DESLOCAMENTO - ALCANCE_X;
+            int proxima = -1;
+            for (int i = 0; i < florX.length; i++) {
+                if (florRecuperada[i] || luzXNaTela(i) < limiteEsquerdo) {
+                    continue;
+                }
+                if (proxima < 0 || luzXNaTela(i) < luzXNaTela(proxima)) {
+                    proxima = i;
+                }
+            }
+            if (proxima < 0 || chegadaPassada[proxima] >= 0f) {
+                return;
+            }
+            if (inicioPassada[proxima] < 0f) {
+                if (luzXNaTela(proxima) <= LARGURA_MUNDO) {
+                    inicioPassada[proxima] = tempoFase;
+                }
+                return;
+            }
+            float tolerancia = TOLERANCIA_ALTURA * ESCALA_LUZ[indiceFase()];
+            if (Math.abs(luzYNaTela(proxima) - fadaY) <= tolerancia) {
+                chegadaPassada[proxima] = tempoFase - inicioPassada[proxima];
+            }
+        }
+
+        // Firmeza da flor i: 1 = força totalmente estável enquanto regava
+        private float calcularFirmeza(int i) {
+            int n = amostrasForca[i];
+            if (n < 2) {
+                return 1f;
+            }
+            double media = somaForca[i] / n;
+            double variancia = Math.max(0.0, somaForcaQuadrado[i] / n - media * media);
+            float desvio = (float) Math.sqrt(variancia);
+            return MathUtils.clamp(1f - desvio / SIGMA_REFERENCIA_FIRMEZA, 0f, 1f);
+        }
+
+        // Guarda o resultado da fase que acabou de terminar
+        private void registrarResultadoFase() {
+            int indice = indiceFase();
+            int quantidade = florX.length;
+            float somaChegada = 0f;
+            float somaFirmeza = 0f;
+            int voltas = 0;
+            for (int i = 0; i < quantidade; i++) {
+                somaChegada += chegadaFlor[i];
+                somaFirmeza += firmezaFlor[i];
+                voltas += tentativasFlor[i] - 1;
+            }
+            resultadoValido[indice] = true;
+            resultadoTempo[indice] = tempoFase;
+            resultadoChegada[indice] = somaChegada / quantidade;
+            resultadoFirmeza[indice] = somaFirmeza / quantidade;
+            resultadoVoltas[indice] = voltas;
+            int estrelas = 1;                                      // terminou a fase
+            if (voltas == 0) estrelas++;                           // nenhuma flor voltou
+            if (resultadoFirmeza[indice] >= FIRMEZA_PARA_ESTRELA) estrelas++;   // força firme
+            resultadoEstrelas[indice] = estrelas;
+            Gdx.app.log("Resultado", "Fase " + faseAtual + ": tempo " + formatarTempo(tempoFase)
+                    + ", chegada " + formatarSegundos(resultadoChegada[indice])
+                    + ", firmeza " + Math.round(resultadoFirmeza[indice] * 100) + "%"
+                    + ", voltas " + voltas + ", estrelas " + estrelas);
+        }
+
         private void concluirFase() {
+            registrarResultadoFase();
             nivelConcluido = true;
             Gdx.app.log("Fase" + faseAtual, "Nível " + faseAtual + " concluído");
             if (faseAtual == 3) {
@@ -661,6 +822,12 @@
         // Só é chamado em desenharFase(): não aparece no menu nem nas telas de conclusão.
         // Escreve um texto com os números desenhados (0-9, / e :), centralizado em (centroX, centroY).
         // Chamar dentro de lote.begin()/end().
+        private float larguraTexto(String texto, float altura, float espacamento) {
+            TextureRegion modelo = regNumeros[0];
+            float larguraNumero = altura * modelo.getRegionWidth() / modelo.getRegionHeight();
+            return larguraNumero * espacamento * (texto.length() - 1) + larguraNumero;
+        }
+
         private void desenharTexto(String texto, float centroX, float centroY, float altura, float espacamento) {
             TextureRegion modelo = regNumeros[0];
             float larguraNumero = altura * modelo.getRegionWidth() / modelo.getRegionHeight();
@@ -679,8 +846,7 @@
         // Plaquinha com relógio e o tempo da fase (m:ss), no canto superior esquerdo. Só nas fases.
         private void desenharTempo() {
             lote.draw(texPainelTempo, PAINEL_TEMPO_X, PAINEL_TEMPO_Y, PAINEL_TEMPO_W, PAINEL_TEMPO_H);
-            int segundos = (int) tempoFase;
-            String texto = (segundos / 60) + ":" + (segundos % 60 < 10 ? "0" : "") + (segundos % 60);
+            String texto = formatarTempo(tempoFase);
             desenharTexto(texto, PAINEL_TEMPO_X + TEXTO_TEMPO_CENTRO_X,
                     PAINEL_TEMPO_Y + PAINEL_TEMPO_H / 2f, ALTURA_NUMERO_TEMPO, ESPACAMENTO_NUMERO_TEMPO);
         }
@@ -726,13 +892,18 @@
 
         private void desenharTelaFinal() {
             viewport.unproject(toque.set(Gdx.input.getX(), Gdx.input.getY()));
+            boolean sobreResultados = BTN_FINAL_RESULTADOS.contains(toque);
             boolean sobreReiniciar = BTN_FINAL_REINICIAR.contains(toque);
             boolean sobreMenu = BTN_FINAL_MENU.contains(toque);
-            atualizarCursor(sobreReiniciar || sobreMenu
+            atualizarCursor(sobreResultados || sobreReiniciar || sobreMenu
                     ? Cursor.SystemCursor.Hand : Cursor.SystemCursor.Arrow);
 
             if (Gdx.input.justTouched()) {
-                if (sobreReiniciar) {
+                if (sobreResultados) {
+                    estado = Estado.RESULTADOS;
+                    atualizarCursor(Cursor.SystemCursor.Arrow);
+                    return;
+                } else if (sobreReiniciar) {
                     iniciarFase1();      // joga tudo de novo, desde a fase 1
                     return;
                 } else if (sobreMenu) {
@@ -748,12 +919,112 @@
             if (DEBUG_HITBOX) {
                 desenhador.begin(ShapeRenderer.ShapeType.Line);
                 desenhador.setColor(1f, 1f, 1f, 1f);
-                desenhador.rect(BTN_FINAL_REINICIAR.x, BTN_FINAL_REINICIAR.y,
-                        BTN_FINAL_REINICIAR.width, BTN_FINAL_REINICIAR.height);
-                desenhador.rect(BTN_FINAL_MENU.x, BTN_FINAL_MENU.y,
-                        BTN_FINAL_MENU.width, BTN_FINAL_MENU.height);
+                desenharRetangulo(BTN_FINAL_RESULTADOS);
+                desenharRetangulo(BTN_FINAL_REINICIAR);
+                desenharRetangulo(BTN_FINAL_MENU);
                 desenhador.end();
             }
+        }
+
+        private void desenharRetangulo(Rectangle r) {
+            desenhador.rect(r.x, r.y, r.width, r.height);
+        }
+
+        // ------------------------------------------------------------------
+        // Tela de resultados: compara as 3 fases (métricas da seção 3.4 do artigo)
+        // ------------------------------------------------------------------
+        private void desenharResultados() {
+            viewport.unproject(toque.set(Gdx.input.getX(), Gdx.input.getY()));
+            boolean sobreMenu = BTN_RESULTADOS_MENU.contains(toque);
+            boolean sobreJogar = BTN_RESULTADOS_JOGAR.contains(toque);
+            atualizarCursor(sobreMenu || sobreJogar ? Cursor.SystemCursor.Hand : Cursor.SystemCursor.Arrow);
+
+            if (Gdx.input.justTouched()) {
+                if (sobreMenu) {
+                    voltarAoMenu();
+                    return;
+                } else if (sobreJogar) {
+                    iniciarFase1();
+                    return;
+                }
+            }
+
+            lote.begin();
+            lote.draw(texResultadosFundo, 0, 0, LARGURA_MUNDO, ALTURA_MUNDO);
+            for (int f = 0; f < 3; f++) {
+                if (!resultadoValido[f]) {
+                    continue;
+                }
+                float colunaX = RESULTADO_COLUNA_X + f * RESULTADO_COLUNA_PASSO;
+                float centroX = colunaX + RESULTADO_COLUNA_W / 2f;
+                // estrelas
+                for (int k = 0; k < 3; k++) {
+                    Texture estrela = k < resultadoEstrelas[f] ? texEstrelaCheia : texEstrelaVazia;
+                    float ex = centroX + (k - 1) * RESULTADO_ESTRELA_PASSO;
+                    lote.draw(estrela, ex - RESULTADO_ESTRELA_TAM / 2f,
+                            RESULTADO_ESTRELAS_Y - RESULTADO_ESTRELA_TAM / 2f,
+                            RESULTADO_ESTRELA_TAM, RESULTADO_ESTRELA_TAM);
+                }
+                // valores, alinhados à direita: tempo, chegada, firmeza, voltas
+                String[] valores = {
+                        formatarTempo(resultadoTempo[f]),
+                        formatarSegundos(resultadoChegada[f]),
+                        Math.round(resultadoFirmeza[f] * 100) + "%",
+                        String.valueOf(resultadoVoltas[f]),
+                };
+                float direita = colunaX + RESULTADO_COLUNA_W - RESULTADO_VALOR_MARGEM;
+                for (int j = 0; j < valores.length; j++) {
+                    float y = RESULTADO_LINHA1_Y - j * RESULTADO_LINHA_PASSO;
+                    float largura = larguraTexto(valores[j], RESULTADO_ALTURA_NUMERO, ESPACAMENTO_NUMERO_TEMPO);
+                    desenharTexto(valores[j], direita - largura / 2f, y,
+                            RESULTADO_ALTURA_NUMERO, ESPACAMENTO_NUMERO_TEMPO);
+                }
+            }
+            Texture frase = escolherFrase();
+            lote.draw(frase, (LARGURA_MUNDO - RESULTADO_FRASE_W) / 2f, RESULTADO_FRASE_Y - RESULTADO_FRASE_H / 2f,
+                    RESULTADO_FRASE_W, RESULTADO_FRASE_H);
+            lote.end();
+
+            if (DEBUG_HITBOX) {
+                desenhador.begin(ShapeRenderer.ShapeType.Line);
+                desenhador.setColor(1f, 1f, 1f, 1f);
+                desenharRetangulo(BTN_RESULTADOS_MENU);
+                desenharRetangulo(BTN_RESULTADOS_JOGAR);
+                desenhador.end();
+            }
+        }
+
+        // Frase de incentivo escolhida a partir da evolução em relação à fase 1
+        private Texture escolherFrase() {
+            if (!resultadoValido[0] || !resultadoValido[1] || !resultadoValido[2]) {
+                return texFraseGeral;
+            }
+            if (resultadoVoltas[0] + resultadoVoltas[1] + resultadoVoltas[2] == 0) {
+                return texFrasePrimeira;
+            }
+            float melhoraFirmeza2 = resultadoFirmeza[1] - resultadoFirmeza[0];
+            float melhoraFirmeza3 = resultadoFirmeza[2] - resultadoFirmeza[0];
+            if (Math.max(melhoraFirmeza2, melhoraFirmeza3) >= MELHORA_MINIMA_FIRMEZA) {
+                return melhoraFirmeza3 >= melhoraFirmeza2 ? texFraseFirmeza3 : texFraseFirmeza2;
+            }
+            float melhoraChegada2 = resultadoChegada[0] - resultadoChegada[1];
+            float melhoraChegada3 = resultadoChegada[0] - resultadoChegada[2];
+            if (Math.max(melhoraChegada2, melhoraChegada3) >= MELHORA_MINIMA_CHEGADA) {
+                return melhoraChegada3 >= melhoraChegada2 ? texFraseChegada3 : texFraseChegada2;
+            }
+            return texFraseGeral;
+        }
+
+        // 75 s -> "1:15"
+        private String formatarTempo(float segundosTotais) {
+            int segundos = (int) segundosTotais;
+            return (segundos / 60) + ":" + (segundos % 60 < 10 ? "0" : "") + (segundos % 60);
+        }
+
+        // 2.14 s -> "2,1s"
+        private String formatarSegundos(float segundos) {
+            int decimos = Math.round(segundos * 10f);
+            return (decimos / 10) + "," + (decimos % 10) + "s";
         }
 
         // ------------------------------------------------------------------
@@ -788,7 +1059,11 @@
             somRegar.stop();
         }
 
+        // Começar pela fase 1 = jogo novo: apaga os resultados anteriores
         private void iniciarFase1() {
+            for (int i = 0; i < 3; i++) {
+                resultadoValido[i] = false;
+            }
             prepararNovaFase(1, Estado.FASE1);
         }
 
@@ -923,6 +1198,9 @@
                 case FIM_DE_JOGO:
                     desenharTelaFinal();
                     break;
+                case RESULTADOS:
+                    desenharResultados();
+                    break;
             }
             atualizarAudio();
         }
@@ -936,7 +1214,7 @@
 
             boolean emFase = estado == Estado.FASE1 || estado == Estado.FASE2 || estado == Estado.FASE3;
             boolean telaConclusao = estado == Estado.NIVEL_CONCLUIDO || estado == Estado.FIM_DE_JOGO;
-            boolean tocarMenu = estado == Estado.MENU || (emFase && pausado);
+            boolean tocarMenu = estado == Estado.MENU || estado == Estado.RESULTADOS || (emFase && pausado);
             boolean tocarJardim = emFase && !pausado;
 
             if (tocarMenu && !musicaMenu.isPlaying()) {
@@ -980,6 +1258,15 @@
             texSomDesligado.dispose();
             texPainelContador.dispose();
             texPainelTempo.dispose();
+            texResultadosFundo.dispose();
+            texEstrelaCheia.dispose();
+            texEstrelaVazia.dispose();
+            texFraseFirmeza2.dispose();
+            texFraseFirmeza3.dispose();
+            texFraseChegada2.dispose();
+            texFraseChegada3.dispose();
+            texFrasePrimeira.dispose();
+            texFraseGeral.dispose();
             texNumerosContador.dispose();
             texMenu.dispose();
             texCenario.dispose();
