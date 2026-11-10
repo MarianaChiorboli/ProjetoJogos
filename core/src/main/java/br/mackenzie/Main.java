@@ -25,7 +25,7 @@
         // A câmera fica parada na vertical; só o cenário anda na horizontal.
         private static final float CAMERA_Y = 0.75f;
         private static final float LARGURA_BARRA = 0.5f;
-        private static final float ALTURA_BARRA = 3.5f;
+        private static final float ALTURA_BARRA = 3.3f;   // um pouco mais baixa, para não encostar no tempo
 
         // ==================================================================
         // CONTROLE PELA FORÇA (sensor / ESPAÇO)
@@ -100,7 +100,16 @@
         private static final float TEXTO_CONTADOR_CENTRO_X = 1.0f;  // centro do texto, medido da borda esquerda do painel
         private static final float ALTURA_NUMERO = 0.3625f;
         private static final float ESPACAMENTO_NUMERO = 0.9f;       // 1 = células encostadas; menor = mais juntas
-        private static final String CARACTERES_CONTADOR = "0123456789/";
+        private static final String CARACTERES_CONTADOR = "0123456789/:";
+
+        // ---- Tempo da fase (canto superior esquerdo, só nas fases) ----
+        private static final float PAINEL_TEMPO_X = 0.0625f;
+        private static final float PAINEL_TEMPO_Y = 3.9f;
+        private static final float PAINEL_TEMPO_W = 1.3125f;
+        private static final float PAINEL_TEMPO_H = 0.575f;
+        private static final float TEXTO_TEMPO_CENTRO_X = 0.85f;    // centro do texto, medido da borda esquerda do painel
+        private static final float ALTURA_NUMERO_TEMPO = 0.30f;
+        private static final float ESPACAMENTO_NUMERO_TEMPO = 0.75f;
 
         private final ForceInput entradaForca;
         private Estado estado = Estado.MENU;
@@ -138,8 +147,9 @@
         private Texture texSomLigado;
         private Texture texSomDesligado;
         private Texture texPainelContador;
+        private Texture texPainelTempo;
         private Texture texNumerosContador;
-        private final TextureRegion[] regNumeros = new TextureRegion[11];
+        private final TextureRegion[] regNumeros = new TextureRegion[12];   // 0-9, / e :
         private Texture texLuzMagica;
         private Texture texFadaParada;
         private Texture texFadaRegando;
@@ -156,6 +166,7 @@
 
         // ---- Cenário rolando ----
         private float deslocamento = 0f;    // quanto o cenário já andou (unidades do mundo)
+        private float tempoFase = 0f;       // segundos jogados na fase (para na pausa)
 
         // ---- Flores da fase atual ----
         private Texture[] texFloresMortas;  // uma imagem por flor
@@ -203,8 +214,9 @@
             texSomLigado = carregar("SomLigado.png");
             texSomDesligado = carregar("SomDesligado.png");
             texPainelContador = carregar("PainelContador.png");
+            texPainelTempo = carregar("PainelTempo.png");
             texNumerosContador = carregar("NumerosContador.png");
-            // A imagem tem 11 células do mesmo tamanho: 0 1 2 3 4 5 6 7 8 9 /
+            // A imagem tem 12 células do mesmo tamanho: 0 1 2 3 4 5 6 7 8 9 / :
             int larguraCelula = texNumerosContador.getWidth() / regNumeros.length;
             for (int i = 0; i < regNumeros.length; i++) {
                 regNumeros[i] = new TextureRegion(texNumerosContador, i * larguraCelula, 0,
@@ -380,6 +392,8 @@
                 }
                 return;
             }
+
+            tempoFase += delta;   // para quando a última flor desperta (conclusaoPendente)
 
             // Rega: a Lumi está tocando a luz de alguma flor seca?
             tocandoLuz = false;
@@ -620,6 +634,7 @@
             desenharFada();
             lote.draw(texBotaoPausar, 0, 0, LARGURA_MUNDO, ALTURA_MUNDO);
             desenharContadorFlores(florRecuperada.length, floresRecuperadas());
+            desenharTempo();
             lote.end();
 
             desenharProgressoRega();
@@ -644,23 +659,40 @@
         // Plaquinha com a flor e o placar "regadas / total".
         // Coordenadas de tela (não rola com o cenário). Chamar dentro de lote.begin()/end().
         // Só é chamado em desenharFase(): não aparece no menu nem nas telas de conclusão.
+        // Escreve um texto com os números desenhados (0-9, / e :), centralizado em (centroX, centroY).
+        // Chamar dentro de lote.begin()/end().
+        private void desenharTexto(String texto, float centroX, float centroY, float altura, float espacamento) {
+            TextureRegion modelo = regNumeros[0];
+            float larguraNumero = altura * modelo.getRegionWidth() / modelo.getRegionHeight();
+            float avanco = larguraNumero * espacamento;
+            float larguraTexto = avanco * (texto.length() - 1) + larguraNumero;
+            float x = centroX - larguraTexto / 2f;
+            float y = centroY - altura / 2f;
+            for (int i = 0; i < texto.length(); i++) {
+                int indice = CARACTERES_CONTADOR.indexOf(texto.charAt(i));
+                if (indice >= 0) {
+                    lote.draw(regNumeros[indice], x + i * avanco, y, larguraNumero, altura);
+                }
+            }
+        }
+
+        // Plaquinha com relógio e o tempo da fase (m:ss), no canto superior esquerdo. Só nas fases.
+        private void desenharTempo() {
+            lote.draw(texPainelTempo, PAINEL_TEMPO_X, PAINEL_TEMPO_Y, PAINEL_TEMPO_W, PAINEL_TEMPO_H);
+            int segundos = (int) tempoFase;
+            String texto = (segundos / 60) + ":" + (segundos % 60 < 10 ? "0" : "") + (segundos % 60);
+            desenharTexto(texto, PAINEL_TEMPO_X + TEXTO_TEMPO_CENTRO_X,
+                    PAINEL_TEMPO_Y + PAINEL_TEMPO_H / 2f, ALTURA_NUMERO_TEMPO, ESPACAMENTO_NUMERO_TEMPO);
+        }
+
         private void desenharContadorFlores(int total, int regadas) {
             lote.draw(texPainelContador, PAINEL_CONTADOR_X, PAINEL_CONTADOR_Y,
                     PAINEL_CONTADOR_W, PAINEL_CONTADOR_H);
 
-            String texto = regadas + "/" + total;
-            TextureRegion modelo = regNumeros[0];
-            float larguraNumero = ALTURA_NUMERO * modelo.getRegionWidth() / modelo.getRegionHeight();
-            float avanco = larguraNumero * ESPACAMENTO_NUMERO;
-            float larguraTexto = avanco * (texto.length() - 1) + larguraNumero;
-            float x = PAINEL_CONTADOR_X + TEXTO_CONTADOR_CENTRO_X - larguraTexto / 2f;
-            float y = PAINEL_CONTADOR_Y + PAINEL_CONTADOR_H / 2f - ALTURA_NUMERO / 2f;
-            for (int i = 0; i < texto.length(); i++) {
-                int indice = CARACTERES_CONTADOR.indexOf(texto.charAt(i));
-                if (indice >= 0) {
-                    lote.draw(regNumeros[indice], x + i * avanco, y, larguraNumero, ALTURA_NUMERO);
-                }
-            }
+            desenharTexto(regadas + "/" + total,
+                    PAINEL_CONTADOR_X + TEXTO_CONTADOR_CENTRO_X,
+                    PAINEL_CONTADOR_Y + PAINEL_CONTADOR_H / 2f,
+                    ALTURA_NUMERO, ESPACAMENTO_NUMERO);
         }
 
         // ------------------------------------------------------------------
@@ -749,6 +781,7 @@
             tempoVoo = 0f;
             tocandoLuz = false;
             deslocamento = 0f;
+            tempoFase = 0f;
             conclusaoPendente = false;
             configurarFlores(fase);
             musicaJardim.stop();
@@ -946,6 +979,7 @@
             texSomLigado.dispose();
             texSomDesligado.dispose();
             texPainelContador.dispose();
+            texPainelTempo.dispose();
             texNumerosContador.dispose();
             texMenu.dispose();
             texCenario.dispose();
