@@ -3,6 +3,7 @@
     import com.badlogic.gdx.ApplicationAdapter;
     import com.badlogic.gdx.Gdx;
     import com.badlogic.gdx.Input;
+    import com.badlogic.gdx.audio.Music;
     import com.badlogic.gdx.graphics.Cursor;
     import com.badlogic.gdx.graphics.GL20;
     import com.badlogic.gdx.graphics.Texture;
@@ -90,6 +91,11 @@
         private boolean pausado = false;
         private boolean nivelConcluido = false;
         private float forcaAtual;
+        private Music musicaMenu;
+        private Music musicaJardim;
+        private Music somPassouFase;
+        private Music somRegar;
+        private Estado estadoAudioAnterior = null;
         private Cursor.SystemCursor cursorAtual = Cursor.SystemCursor.Arrow;
         private FitViewport viewport;
         private ShapeRenderer desenhador;
@@ -175,6 +181,16 @@
             texFadaRegando = carregar("Fada Regando.png");
             texFadaVoando1 = carregar("Fada Voandinho1.png");
             texFadaVoando2 = carregar("Fada Voandinho2.png");
+            musicaMenu = carregarMusica("menu.mp3", true);
+            musicaJardim = carregarMusica("jardim.mp3", true);
+            somPassouFase = carregarMusica("passou de fase.mp3", false);
+            somRegar = carregarMusica("regar.mp3", true);
+        }
+
+        private Music carregarMusica(String arquivo, boolean repetir) {
+            Music m = Gdx.audio.newMusic(Gdx.files.internal(arquivo));
+            m.setLooping(repetir);
+            return m;
         }
 
         private Texture carregar(String arquivo) {
@@ -429,7 +445,7 @@
         // Usada por todas as fases
         private void desenharFada() {
             Texture tex;
-            if (pertoDaFlor && Gdx.input.isKeyPressed(Input.Keys.SPACE)) {
+            if (estaRegando()) {
                 tex = texFadaRegando;
             } else if (subindo) {
                 tex = texFadaVoando1;
@@ -453,6 +469,10 @@
                     fadaX - cameraX - w / 2f, fadaY - cameraY + pulo, w, h,
                     0, 0, tex.getWidth(), tex.getHeight(),
                     flip, false);
+        }
+
+        private boolean estaRegando() {
+            return pertoDaFlor && Gdx.input.isKeyPressed(Input.Keys.SPACE);
         }
 
         // ------------------------------------------------------------------
@@ -688,6 +708,8 @@
             forcaAtual = 0f;
             pertoDaFlor = false;
             resetarFada();
+            musicaJardim.stop();
+            somRegar.stop();
         }
 
         private void iniciarFase1() {
@@ -845,10 +867,50 @@
                     desenharTelaFinal();
                     break;
             }
+            atualizarAudio();
+        }
+
+        private void atualizarAudio() {
+            boolean emFase = estado == Estado.FASE1 || estado == Estado.FASE2 || estado == Estado.FASE3;
+            boolean telaConclusao = estado == Estado.NIVEL_CONCLUIDO || estado == Estado.FIM_DE_JOGO;
+            boolean tocarMenu = estado == Estado.MENU || (emFase && pausado);
+            boolean tocarJardim = emFase && !pausado;
+
+            if (tocarMenu && !musicaMenu.isPlaying()) {
+                musicaMenu.play();
+            } else if (!tocarMenu && musicaMenu.isPlaying()) {
+                musicaMenu.stop();
+            }
+
+            if (tocarJardim && !musicaJardim.isPlaying()) {
+                musicaJardim.play();
+            } else if (!tocarJardim && musicaJardim.isPlaying()) {
+                musicaJardim.pause();
+            }
+
+            if (telaConclusao && estado != estadoAudioAnterior) {
+                somPassouFase.stop();
+                somPassouFase.play();
+            } else if (!telaConclusao && somPassouFase.isPlaying()) {
+                somPassouFase.stop();
+            }
+
+            boolean regando = tocarJardim && estaRegando();
+            if (regando && !somRegar.isPlaying()) {
+                somRegar.play();
+            } else if (!regando && somRegar.isPlaying()) {
+                somRegar.stop();
+            }
+
+            estadoAudioAnterior = estado;
         }
 
         @Override
         public void dispose() {
+            musicaMenu.dispose();
+            musicaJardim.dispose();
+            somPassouFase.dispose();
+            somRegar.dispose();
             desenhador.dispose();
             lote.dispose();
             texMenu.dispose();
