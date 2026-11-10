@@ -8,6 +8,7 @@
     import com.badlogic.gdx.graphics.GL20;
     import com.badlogic.gdx.graphics.Texture;
     import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+    import com.badlogic.gdx.graphics.g2d.TextureRegion;
     import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
     import com.badlogic.gdx.math.MathUtils;
     import com.badlogic.gdx.math.Rectangle;
@@ -86,6 +87,16 @@
         private static final boolean ESCURECER_NA_PAUSA = true;
         private static final float PAUSA_ESCURECIMENTO = 0.45f;
 
+        // ---- Contador de flores "regadas / total" (topo central, só nas fases) ----
+        private static final float PAINEL_CONTADOR_W = 1.5625f;
+        private static final float PAINEL_CONTADOR_H = 0.6375f;
+        private static final float PAINEL_CONTADOR_X = (LARGURA_MUNDO - PAINEL_CONTADOR_W) / 2f;
+        private static final float PAINEL_CONTADOR_Y = 3.84f;
+        private static final float TEXTO_CONTADOR_CENTRO_X = 1.0f;  // centro do texto, medido da borda esquerda do painel
+        private static final float ALTURA_NUMERO = 0.3625f;
+        private static final float ESPACAMENTO_NUMERO = 0.9f;       // 1 = células encostadas; menor = mais juntas
+        private static final String CARACTERES_CONTADOR = "0123456789/";
+
         private final ForceInput entradaForca;
         private Estado estado = Estado.MENU;
         private int faseAtual = 1;
@@ -121,6 +132,9 @@
         private Texture texBotaoPausar;
         private Texture texSomLigado;
         private Texture texSomDesligado;
+        private Texture texPainelContador;
+        private Texture texNumerosContador;
+        private final TextureRegion[] regNumeros = new TextureRegion[11];
         private Texture texFadaParada;
         private Texture texFadaAndando;
         private Texture texFadaRegando;
@@ -187,6 +201,14 @@
             texFadaVoando2 = carregar("Fada Voandinho2.png");
             texSomLigado = carregar("SomLigado.png");
             texSomDesligado = carregar("SomDesligado.png");
+            texPainelContador = carregar("PainelContador.png");
+            texNumerosContador = carregar("NumerosContador.png");
+            // A imagem tem 11 células do mesmo tamanho: 0 1 2 3 4 5 6 7 8 9 /
+            int larguraCelula = texNumerosContador.getWidth() / regNumeros.length;
+            for (int i = 0; i < regNumeros.length; i++) {
+                regNumeros[i] = new TextureRegion(texNumerosContador, i * larguraCelula, 0,
+                        larguraCelula, texNumerosContador.getHeight());
+            }
             musicaMenu = carregarMusica("menu.mp3", true);
             musicaJardim = carregarMusica("jardim.mp3", true);
             somPassouFase = carregarMusica("passou de fase.mp3", false);
@@ -567,6 +589,11 @@
             }
             desenharFada();
             lote.draw(texBotaoPausar, 0, 0, LARGURA_MUNDO, ALTURA_MUNDO);
+            int regadas = 0;
+            for (boolean recuperada : florRecuperada) {
+                if (recuperada) regadas++;
+            }
+            desenharContadorFlores(florRecuperada.length, regadas);
             lote.end();
 
             desenharBarraForca();
@@ -586,6 +613,28 @@
             desenharPausa();
         }
 
+        // Plaquinha com a flor e o placar "regadas / total".
+        // Coordenadas de tela (não rola com o cenário). Chamar dentro de lote.begin()/end().
+        // Só é chamado em desenharFase1() e desenharFasePlantas(): não aparece no menu nem nas telas de conclusão.
+        private void desenharContadorFlores(int total, int regadas) {
+            lote.draw(texPainelContador, PAINEL_CONTADOR_X, PAINEL_CONTADOR_Y,
+                    PAINEL_CONTADOR_W, PAINEL_CONTADOR_H);
+
+            String texto = regadas + "/" + total;
+            TextureRegion modelo = regNumeros[0];
+            float larguraNumero = ALTURA_NUMERO * modelo.getRegionWidth() / modelo.getRegionHeight();
+            float avanco = larguraNumero * ESPACAMENTO_NUMERO;
+            float larguraTexto = avanco * (texto.length() - 1) + larguraNumero;
+            float x = PAINEL_CONTADOR_X + TEXTO_CONTADOR_CENTRO_X - larguraTexto / 2f;
+            float y = PAINEL_CONTADOR_Y + PAINEL_CONTADOR_H / 2f - ALTURA_NUMERO / 2f;
+            for (int i = 0; i < texto.length(); i++) {
+                int indice = CARACTERES_CONTADOR.indexOf(texto.charAt(i));
+                if (indice >= 0) {
+                    lote.draw(regNumeros[indice], x + i * avanco, y, larguraNumero, ALTURA_NUMERO);
+                }
+            }
+        }
+
         private void desenharFase1() {
             float alturaCenario = alturaCenario();
             float larguraFlor = LARGURA_MUNDO * ESCALA_FLOR;
@@ -599,6 +648,7 @@
                     xFlor, yFlor, larguraFlor, alturaFlor);
             desenharFada();
             lote.draw(texBotaoPausar, 0, 0, LARGURA_MUNDO, ALTURA_MUNDO);
+            desenharContadorFlores(1, nivelConcluido ? 1 : 0);
             lote.end();
 
             // Barra de força (teste do sensor), por cima do cenário
@@ -933,6 +983,8 @@
             lote.dispose();
             texSomLigado.dispose();
             texSomDesligado.dispose();
+            texPainelContador.dispose();
+            texNumerosContador.dispose();
             texMenu.dispose();
             texCenario.dispose();
             texCenarioFase2.dispose();
