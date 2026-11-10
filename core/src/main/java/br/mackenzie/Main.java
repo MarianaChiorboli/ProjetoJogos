@@ -2,7 +2,6 @@
 
     import com.badlogic.gdx.ApplicationAdapter;
     import com.badlogic.gdx.Gdx;
-    import com.badlogic.gdx.Input;
     import com.badlogic.gdx.audio.Music;
     import com.badlogic.gdx.graphics.Cursor;
     import com.badlogic.gdx.graphics.GL20;
@@ -20,53 +19,59 @@
 
         private static final float LARGURA_MUNDO = 8.0f;
         private static final float ALTURA_MUNDO = 4.5f;   // 16:9, igual ao cenário
-        // Largura de UM cenário: igual nas 3 fases (mesmo zoom)
+        // Largura de UMA imagem de cenário (mesmo zoom nas 3 fases). O cenário se repete
+        // sem fim, alternando normal/espelhado, para as emendas ficarem invisíveis.
         private static final float LARGURA_CENARIO = 12f;
-        private static final float SEGUIMENTO_CAMERA = 0.5f;
+        // A câmera fica parada na vertical; só o cenário anda na horizontal.
+        private static final float CAMERA_Y = 0.75f;
         private static final float LARGURA_BARRA = 0.5f;
         private static final float ALTURA_BARRA = 3.5f;
 
-        // ---- Fada (compartilhado entre as fases) ----
-        private static final float ALTURA_FADA = 1.3f;       // altura da fada no mundo
-        private static final float CHAO_Y = 1.65f;           // posição inicial da fada no cenário
-        private static final float VELOCIDADE_FADA = 2.0f;   // unidades do mundo por segundo
-        private static final float FADA_X_INICIAL = 2.0f;
-        private static final float CAMERA_X_INICIAL = 0.5f;
-        private static final float CAMERA_Y_INICIAL = 0.75f;
-        private static final float DISTANCIA_REGAR = 1.3f;
+        // ==================================================================
+        // CONTROLE PELA FORÇA (sensor / ESPAÇO)
+        // A força (0 a 1) define a ALTURA da Lumi. O cenário anda sozinho.
+        // ==================================================================
+        private static final float ALTURA_FADA = 1.3f;          // altura da imagem da fada no mundo
+        private static final float FADA_X_TELA = 1.9f;          // Lumi fica sempre nesta posição horizontal
+        // Altura do CORPO da Lumi na tela: força 0 = Y_FADA_MIN (perto do chão), força 1 = Y_FADA_MAX
+        private static final float Y_FADA_MIN = 1.2f;
+        private static final float Y_FADA_MAX = 3.4f;
+        private static final float SUAVIZACAO_FADA = 8f;        // maior = Lumi segue a força mais rápido
+        private static final float LIMIAR_SUBINDO = 0.15f;      // velocidade vertical para trocar o sprite
+        // Posição do corpo dentro de cada imagem da fada (medido nas imagens; 0..1 a partir da esquerda/baixo).
+        // Serve para a Lumi não "pular" de lugar quando troca de sprite.
+        private static final float[] CENTRO_X_SPRITE = {0.494f, 0.298f, 0.452f, 0.423f}; // parada, voando1, voando2, regando
+        private static final float[] CENTRO_Y_SPRITE = {0.521f, 0.493f, 0.494f, 0.452f};
 
-        // ---- Fase 1 ----
-        private static final float FLOR_X = 11.15f;
-        private static final float ESCALA_FLOR = 0.8f;
-
-        // ---- Fase 2 ----
-        // Altura (no cenário) do chão onde as flores ficam.
-        private static final float CHAO_FLORES_FASE2 = CHAO_Y;
-        private static final float FLOR1_X_FASE2 = 4.3f;
-        private static final float FLOR2_X_FASE2 = 10.7f;
-        private static final float LARGURA_IMAGEM_FLOR_FASE2 = 6.9f;
-        private static final float ANCORA_X_IMAGEM_FLOR_FASE2 = 0.83f;
-        private static final float ANCORA_Y_IMAGEM_FLOR_FASE2 = 0.12f;
-
-        // ---- Fase 3 ----
-        // O cenário da fase 3 é 4x mais largo: a imagem se repete 4 vezes (alternando
-        // espelhada, para as emendas ficarem invisíveis) SEM aumentar o zoom.
-        private static final int REPETICOES_CENARIO_FASE3 = 4;
-        private static final int QTD_FLORES_FASE3 = 4;
-        private static final float CHAO_FLORES_FASE3 = CHAO_Y;
-        // Tamanho da flor na fase 3 (diminua/aumente aqui). Antes era 6.9.
-        private static final float LARGURA_IMAGEM_FLOR_FASE3 = 4.8f;
-        // Posição de cada flor DENTRO da sua repetição do cenário (0 = borda esquerda da
-        // imagem, 1 = borda direita). Escolhidas na faixa de terra, longe das pontes e do rio
-        // (as pontes ficam em ~0.13-0.33 e ~0.74-0.91 da largura da imagem).
-        private static final float[] FLORES_FASE3_FRACAO = {0.52f, 0.60f, 0.45f, 0.58f};
-        // Base da flor dentro das imagens 4..7 (medido nas imagens enviadas)
-        private static final float ANCORA_X_IMAGEM_FLOR_FASE3 = 0.825f;
-        private static final float ANCORA_Y_IMAGEM_FLOR_FASE3 = 0.08f;
-
+        // ---- Flores e luzes mágicas ----
+        private static final float CHAO_FLORES = 1.65f;         // chão das flores (coordenada do cenário)
+        private static final float PRIMEIRA_FLOR_X_TELA = 5.0f; // onde a 1ª flor aparece ao começar a fase
+        private static final float ESPACO_ENTRE_FLORES = 3.5f;  // distância entre uma flor e a próxima
+        private static final float TAMANHO_LUZ = 1.0f;          // tamanho da imagem da luz (fases 1 e 2)
+        private static final float TOLERANCIA_ALTURA = 0.30f;   // quão perto (na vertical) a Lumi precisa estar da luz
+        private static final float ALCANCE_X = 0.6f;            // janela horizontal em que a Lumi alcança a luz
+        private static final float ALCANCE_X_DESLOCAMENTO = 0.25f; // a mão da Lumi fica um pouco à direita do corpo
+        private static final float FATOR_VELOCIDADE_REGANDO = 0.2f;  // o cenário desacelera enquanto ela rega
+        private static final float DECAIMENTO_PROGRESSO = 0.5f; // ao sair da luz, o progresso cai devagar
+        private static final float DISTANCIA_SAIDA_TELA = 1.5f; // flor passou deste ponto à esquerda = "volta mais tarde"
         private static final float DURACAO_TRANSFORMACAO_FLOR = 0.4f;
-        // Abaixo disso a força conta como "soltou", liberando a rega da próxima flor
-        private static final float LIMITE_SOLTAR_FORCA = 0.2f;
+
+        // ---- Configuração de cada fase (índice 0 = fase 1) — Tabela 2 do artigo ----
+        // Altura de cada luz em "força" (0 = chão, 1 = força máxima). Uma luz por flor.
+        private static final float[][] ALTURAS_LUZ = {
+                {0.5f, 0.5f, 0.5f},                        // fase 1: mesma altura -> força constante
+                {0.30f, 0.70f, 0.45f, 0.80f},              // fase 2: alturas diferentes -> ajuste da força
+                {0.60f, 0.25f, 0.80f, 0.40f, 0.70f},       // fase 3: alturas diferentes, mais rápido, luz menor
+        };
+        private static final float[] TEMPO_DESPERTAR = {1.5f, 1.8f, 2.0f};   // segundos tocando a luz
+        private static final float[] VELOCIDADE_CENARIO = {0.6f, 0.6f, 0.75f}; // unidades do mundo por segundo
+        private static final float[] ESCALA_LUZ = {1.0f, 1.0f, 0.7f};          // fase 3: luz 30% menor
+
+        // Desenho das imagens de flor de cada fase (as imagens ocupam a tela toda; a âncora é a base da flor)
+        private static final float[] LARGURA_IMAGEM_FLOR = {6.4f, 6.9f, 4.8f};
+        private static final float[] ANCORA_X_FLOR = {0.4837f, 0.83f, 0.825f};
+        private static final float[] ANCORA_Y_FLOR = {0.16f, 0.12f, 0.08f};
+        private static final int QTD_FLORES_FASE3 = 4;   // imagens 4..7
 
         // ---- Menu / botões ----
         private static final float PLAY_X = 6.02f;
@@ -135,37 +140,33 @@
         private Texture texPainelContador;
         private Texture texNumerosContador;
         private final TextureRegion[] regNumeros = new TextureRegion[11];
+        private Texture texLuzMagica;
         private Texture texFadaParada;
-        private Texture texFadaAndando;
         private Texture texFadaRegando;
         private Texture texFadaVoando1;
         private Texture texFadaVoando2;
 
-        // Estado da fada e da câmera (usado pelas 3 fases)
-        private float fadaX = FADA_X_INICIAL;  // centro dos pés da fada no cenário
-        private float fadaY = CHAO_Y;
-        private float cameraX = CAMERA_X_INICIAL;
-        private float cameraY = CAMERA_Y_INICIAL;
-        private boolean andando = false;
+        // ---- Estado da Lumi ----
+        private float fadaY = Y_FADA_MIN;   // altura do CORPO da Lumi na tela
         private boolean subindo = false;
         private boolean descendo = false;
-        private boolean viradaParaDireita = true;
-        private float tempoAndando = 0f;
+        private float tempoVoo = 0f;        // usado para a Lumi "flutuar" de leve
+        // Lumi está tocando a luz de uma flor seca (= regando)
+        private boolean tocandoLuz = false;
 
-        // Flores das fases 2 e 3 (mesma lógica; só muda a configuração)
-        private Texture[] texFloresMortas;
+        // ---- Cenário rolando ----
+        private float deslocamento = 0f;    // quanto o cenário já andou (unidades do mundo)
+
+        // ---- Flores da fase atual ----
+        private Texture[] texFloresMortas;  // uma imagem por flor
         private Texture[] texFloresVivas;
-        private float[] florX;
+        private float[] florX;              // posição da flor no cenário
+        private float[] alturaLuz;          // altura da luz em "força" (0..1)
+        private float[] progressoFlor;      // 0..1 enquanto a Lumi rega
+        private int[] tentativasFlor;       // quantas vezes a flor precisou passar (base para as métricas)
         private boolean[] florRecuperada;
         private float[] animacaoFlor;
-        private float chaoFlores;
-        private float larguraImagemFlor;
-        private float ancoraXFlor;
-        private float ancoraYFlor;
-        private boolean aguardandoNovaMedicao;
         private boolean conclusaoPendente;
-        // Regra de negócio: a fada só rega se estiver perto de uma flor ainda seca
-        private boolean pertoDaFlor = false;
 
         public Main(ForceInput entradaForca) {
             this.entradaForca = entradaForca;
@@ -194,8 +195,8 @@
             }
             texPausa = carregar("MenuImplementado.png");
             texBotaoPausar = carregar("Pause.png");
+            texLuzMagica = carregar("LuzMagica.png");
             texFadaParada = carregar("Fada Estatica.png");
-            texFadaAndando = carregar("Fada Andando.png");
             texFadaRegando = carregar("Fada Regando.png");
             texFadaVoando1 = carregar("Fada Voandinho1.png");
             texFadaVoando2 = carregar("Fada Voandinho2.png");
@@ -235,135 +236,71 @@
         // ------------------------------------------------------------------
         // Cenário da fase atual
         // ------------------------------------------------------------------
-        private float larguraCenario() {
-            return faseAtual == 3 ? LARGURA_CENARIO * REPETICOES_CENARIO_FASE3 : LARGURA_CENARIO;
+        private int indiceFase() {
+            return MathUtils.clamp(faseAtual - 1, 0, 2);
         }
 
         private Texture texturaCenario() {
-            switch (faseAtual) {
-                case 2: return texCenarioFase2;
-                case 3: return texCenario;
-                default: return texCenario;
-            }
+            return faseAtual == 2 ? texCenarioFase2 : texCenario;
         }
 
-        // Altura calculada a partir de UMA repetição (largura 12), mantendo o mesmo zoom
+        // Altura de uma imagem de cenário com largura LARGURA_CENARIO (mesmo zoom em todas as fases)
         private float alturaCenario() {
             Texture t = texturaCenario();
             return LARGURA_CENARIO * t.getHeight() / t.getWidth();
         }
 
-        // ------------------------------------------------------------------
-        // Movimento da fada + câmera (idêntico nas fases)
-        // ------------------------------------------------------------------
-        private void atualizarMovimento(float delta) {
-            boolean direita = Gdx.input.isKeyPressed(Input.Keys.RIGHT);
-            boolean esquerda = Gdx.input.isKeyPressed(Input.Keys.LEFT);
-            boolean teclaCima = Gdx.input.isKeyPressed(Input.Keys.UP);
-            boolean teclaBaixo = Gdx.input.isKeyPressed(Input.Keys.DOWN);
-            andando = direita != esquerda; // só anda se apertar UMA das setas
-            subindo = teclaCima != teclaBaixo && teclaCima;
-            descendo = teclaCima != teclaBaixo && teclaBaixo;
-
-            float xAnterior = fadaX;
-            float yAnterior = fadaY;
-
-            if (andando) {
-                viradaParaDireita = direita;
-                fadaX += (direita ? 1f : -1f) * VELOCIDADE_FADA * delta;
-                tempoAndando += delta;
-            } else {
-                tempoAndando = 0f;
-            }
-
-            if (subindo) {
-                fadaY += VELOCIDADE_FADA * delta;
-            } else if (descendo) {
-                fadaY -= VELOCIDADE_FADA * delta;
-            }
-
-            float larguraMapa = larguraCenario();
-            float alturaMapa = alturaCenario();
-            float alturaMaximaFada = Math.max(alturaDe(texFadaVoando1), alturaDe(texFadaVoando2));
-            fadaY = MathUtils.clamp(fadaY, 0f, Math.max(0f, alturaMapa - alturaMaximaFada));
-
-            // usa a maior imagem da fada, para nenhuma delas ultrapassar o cenário
-            float meiaLargura = larguraMaximaFada() / 2f;
-            fadaX = MathUtils.clamp(fadaX, meiaLargura, larguraMapa - meiaLargura);
-
-            // A câmera segue a fada como antes (metade do deslocamento)...
-            cameraX += (fadaX - xAnterior) * SEGUIMENTO_CAMERA;
-            cameraY += (fadaY - yAnterior) * SEGUIMENTO_CAMERA;
-            // ...mas nunca deixa a imagem da fada sair da tela (necessário em cenários largos)
-            cameraX = MathUtils.clamp(cameraX, fadaX - (LARGURA_MUNDO - meiaLargura),
-                    fadaX - meiaLargura);
-            cameraY = MathUtils.clamp(cameraY, fadaY + alturaMaximaFada - ALTURA_MUNDO, fadaY);
-            // e a câmera nunca sai do cenário
-            cameraX = MathUtils.clamp(cameraX, 0f, larguraMapa - LARGURA_MUNDO);
-            cameraY = MathUtils.clamp(cameraY, 0f, Math.max(0f, alturaMapa - ALTURA_MUNDO));
-        }
-
-        private float larguraMaximaFada() {
-            float maior = larguraDe(texFadaParada);
-            maior = Math.max(maior, larguraDe(texFadaAndando));
-            maior = Math.max(maior, larguraDe(texFadaRegando));
-            maior = Math.max(maior, larguraDe(texFadaVoando1));
-            maior = Math.max(maior, larguraDe(texFadaVoando2));
-            return maior;
-        }
-
-        private void pararFada() {
-            andando = false;
-            subindo = false;
-            descendo = false;
-            tempoAndando = 0f;
-        }
-
-        private void resetarFada() {
-            fadaX = FADA_X_INICIAL;
-            fadaY = CHAO_Y;
-            cameraX = CAMERA_X_INICIAL;
-            cameraY = CAMERA_Y_INICIAL;
-            viradaParaDireita = true;
-            pararFada();
-        }
-
-        private void atualizarFase1(float delta) {
-            atualizarMovimento(delta);
-            pertoDaFlor = !nivelConcluido && fadaPertoDaFlor();
+        // Converte uma força (0..1) na altura do corpo da Lumi na tela
+        private float alturaNaTela(float forca) {
+            return Y_FADA_MIN + forca * (Y_FADA_MAX - Y_FADA_MIN);
         }
 
         // ------------------------------------------------------------------
-        // Fases 2 e 3: regar todas as flores
+        // Lumi: a altura vem da força
+        // ------------------------------------------------------------------
+        private void atualizarLumi(float delta) {
+            float alvo = alturaNaTela(forcaAtual);
+            float anterior = fadaY;
+            fadaY += (alvo - fadaY) * Math.min(1f, SUAVIZACAO_FADA * delta);
+            float velocidade = delta > 0f ? (fadaY - anterior) / delta : 0f;
+            subindo = velocidade > LIMIAR_SUBINDO;
+            descendo = velocidade < -LIMIAR_SUBINDO;
+            tempoVoo += delta;
+        }
+
+        // ------------------------------------------------------------------
+        // Flores: chegam pela direita, cada uma com uma luz mágica na altura certa
         // ------------------------------------------------------------------
         private void configurarFlores(int fase) {
-            if (fase == 2) {
-                texFloresMortas = new Texture[] {texFlorMortaFase2, texFlorMortaYFase2};
-                texFloresVivas = new Texture[] {texFlorVivaFase2, texFlorVivaYFase2};
-                florX = new float[] {FLOR1_X_FASE2, FLOR2_X_FASE2};
-                chaoFlores = CHAO_FLORES_FASE2;
-                larguraImagemFlor = LARGURA_IMAGEM_FLOR_FASE2;
-                ancoraXFlor = ANCORA_X_IMAGEM_FLOR_FASE2;
-                ancoraYFlor = ANCORA_Y_IMAGEM_FLOR_FASE2;
-            } else {
-                texFloresMortas = texFloresMortasFase3;
-                texFloresVivas = texFloresVivasFase3;
-                // uma flor por repetição do cenário, sempre sobre a terra (nunca na ponte).
-                // As repetições ímpares estão espelhadas, então a fração é invertida nelas.
-                florX = new float[QTD_FLORES_FASE3];
-                for (int i = 0; i < QTD_FLORES_FASE3; i++) {
-                    boolean espelhada = (i % 2) == 1;
-                    float fracao = espelhada ? 1f - FLORES_FASE3_FRACAO[i] : FLORES_FASE3_FRACAO[i];
-                    florX[i] = i * LARGURA_CENARIO + fracao * LARGURA_CENARIO;
+            int indice = fase - 1;
+            float[] alturas = ALTURAS_LUZ[indice];
+            int quantidade = alturas.length;
+
+            texFloresMortas = new Texture[quantidade];
+            texFloresVivas = new Texture[quantidade];
+            for (int i = 0; i < quantidade; i++) {
+                if (fase == 1) {
+                    texFloresMortas[i] = texFlorMorta;
+                    texFloresVivas[i] = texFlorViva;
+                } else if (fase == 2) {
+                    boolean amarela = (i % 2) == 1;   // alterna os dois tipos de flor da fase 2
+                    texFloresMortas[i] = amarela ? texFlorMortaYFase2 : texFlorMortaFase2;
+                    texFloresVivas[i] = amarela ? texFlorVivaYFase2 : texFlorVivaFase2;
+                } else {
+                    texFloresMortas[i] = texFloresMortasFase3[i % QTD_FLORES_FASE3];
+                    texFloresVivas[i] = texFloresVivasFase3[i % QTD_FLORES_FASE3];
                 }
-                chaoFlores = CHAO_FLORES_FASE3;
-                larguraImagemFlor = LARGURA_IMAGEM_FLOR_FASE3;
-                ancoraXFlor = ANCORA_X_IMAGEM_FLOR_FASE3;
-                ancoraYFlor = ANCORA_Y_IMAGEM_FLOR_FASE3;
             }
-            florRecuperada = new boolean[florX.length];
-            animacaoFlor = new float[florX.length];
-            for (int i = 0; i < animacaoFlor.length; i++) {
+
+            florX = new float[quantidade];
+            alturaLuz = alturas.clone();
+            progressoFlor = new float[quantidade];
+            tentativasFlor = new int[quantidade];
+            florRecuperada = new boolean[quantidade];
+            animacaoFlor = new float[quantidade];
+            for (int i = 0; i < quantidade; i++) {
+                florX[i] = PRIMEIRA_FLOR_X_TELA + i * ESPACO_ENTRE_FLORES;
+                tentativasFlor[i] = 1;
                 animacaoFlor[i] = DURACAO_TRANSFORMACAO_FLOR;
             }
         }
@@ -377,6 +314,14 @@
             return true;
         }
 
+        private int floresRecuperadas() {
+            int total = 0;
+            for (boolean recuperada : florRecuperada) {
+                if (recuperada) total++;
+            }
+            return total;
+        }
+
         private boolean animacoesTerminadas() {
             for (float anim : animacaoFlor) {
                 if (anim < DURACAO_TRANSFORMACAO_FLOR) {
@@ -386,65 +331,99 @@
             return true;
         }
 
-        // Flor mais próxima (em X) ao alcance da fada, ou -1
-        private int florAlvo() {
-            int alvo = -1;
-            float menorDistancia = Float.MAX_VALUE;
-            for (int i = 0; i < florX.length; i++) {
-                if (florRecuperada[i]) {
-                    continue;
-                }
-                float dx = Math.abs(fadaX - florX[i]);
-                float dy = Math.abs(fadaY - chaoFlores);
-                if (dx <= DISTANCIA_REGAR && dy <= DISTANCIA_REGAR && dx < menorDistancia) {
-                    menorDistancia = dx;
-                    alvo = i;
-                }
-            }
-            return alvo;
+        private float luzXNaTela(int i) {
+            return florX[i] - deslocamento;
         }
 
-        private void atualizarFasePlantas(float delta) {
+        private float luzYNaTela(int i) {
+            return alturaNaTela(alturaLuz[i]);
+        }
+
+        private float tamanhoLuz() {
+            return TAMANHO_LUZ * ESCALA_LUZ[indiceFase()];
+        }
+
+        // A Lumi alcança a luz da flor i? (perto na horizontal E na altura certa)
+        private boolean lumiTocaLuz(int i) {
+            float dx = Math.abs(luzXNaTela(i) - (FADA_X_TELA + ALCANCE_X_DESLOCAMENTO));
+            float dy = Math.abs(luzYNaTela(i) - fadaY);
+            return dx <= ALCANCE_X && dy <= TOLERANCIA_ALTURA * ESCALA_LUZ[indiceFase()];
+        }
+
+        private float posicaoMaisADireita() {
+            float maior = deslocamento + LARGURA_MUNDO;
+            for (float x : florX) {
+                maior = Math.max(maior, x);
+            }
+            return maior;
+        }
+
+        private void atualizarFase(float delta) {
+            int indice = indiceFase();
+
             for (int i = 0; i < animacaoFlor.length; i++) {
                 if (animacaoFlor[i] < DURACAO_TRANSFORMACAO_FLOR) {
                     animacaoFlor[i] = Math.min(DURACAO_TRANSFORMACAO_FLOR, animacaoFlor[i] + delta);
                 }
             }
 
+            // A força é lida UMA vez por frame (o KeyboardForceInput muda a cada chamada)
+            forcaAtual = entradaForca.getForce();
+            atualizarLumi(delta);
+
             if (conclusaoPendente) {
+                tocandoLuz = false;
+                deslocamento += VELOCIDADE_CENARIO[indice] * delta;
                 // espera a animação da última flor antes de encerrar a fase
                 if (animacoesTerminadas()) {
-                    concluirFasePlantas();
+                    concluirFase();
                 }
                 return;
             }
 
-            atualizarMovimento(delta);
-
-            // Mesma regra da fase 1: perto da flor + força máxima = rega
-            forcaAtual = entradaForca.getForce();
-
-            // Depois de regar uma flor, é preciso soltar a força antes de regar a próxima
-            if (aguardandoNovaMedicao && forcaAtual <= LIMITE_SOLTAR_FORCA) {
-                aguardandoNovaMedicao = false;
+            // Rega: a Lumi está tocando a luz de alguma flor seca?
+            tocandoLuz = false;
+            for (int i = 0; i < florX.length; i++) {
+                if (florRecuperada[i]) {
+                    continue;
+                }
+                if (lumiTocaLuz(i)) {
+                    tocandoLuz = true;
+                    progressoFlor[i] += delta / TEMPO_DESPERTAR[indice];
+                    if (progressoFlor[i] >= 1f) {
+                        progressoFlor[i] = 1f;
+                        florRecuperada[i] = true;
+                        animacaoFlor[i] = 0f;
+                        Gdx.app.log("Fase" + faseAtual, "Flor " + (i + 1) + " despertou (tentativas: "
+                                + tentativasFlor[i] + ")");
+                    }
+                } else if (progressoFlor[i] > 0f) {
+                    progressoFlor[i] = Math.max(0f,
+                            progressoFlor[i] - delta * DECAIMENTO_PROGRESSO / TEMPO_DESPERTAR[indice]);
+                }
             }
 
-            int alvo = florAlvo();
-            pertoDaFlor = alvo >= 0;
-            if (!aguardandoNovaMedicao && alvo >= 0 && forcaAtual >= 0.999f) {
-                florRecuperada[alvo] = true;
-                animacaoFlor[alvo] = 0f;
-                aguardandoNovaMedicao = true;
+            // O cenário anda sozinho; desacelera enquanto a Lumi rega
+            float velocidade = VELOCIDADE_CENARIO[indice] * (tocandoLuz ? FATOR_VELOCIDADE_REGANDO : 1f);
+            deslocamento += velocidade * delta;
+
+            // Flor que passou sem despertar "volta mais tarde", entrando de novo pela direita
+            for (int i = 0; i < florX.length; i++) {
+                if (!florRecuperada[i] && luzXNaTela(i) < -DISTANCIA_SAIDA_TELA) {
+                    florX[i] = posicaoMaisADireita() + ESPACO_ENTRE_FLORES;
+                    progressoFlor[i] = 0f;
+                    tentativasFlor[i]++;
+                    Gdx.app.log("Fase" + faseAtual, "Flor " + (i + 1) + " passou; volta mais tarde");
+                }
             }
 
             if (todasRecuperadas()) {
                 conclusaoPendente = true;
-                pertoDaFlor = false;
-                pararFada();
+                tocandoLuz = false;
             }
         }
 
-        private void concluirFasePlantas() {
+        private void concluirFase() {
             nivelConcluido = true;
             Gdx.app.log("Fase" + faseAtual, "Nível " + faseAtual + " concluído");
             if (faseAtual == 3) {
@@ -455,7 +434,7 @@
         }
 
         // ------------------------------------------------------------------
-        // Fada
+        // Lumi (desenho)
         // ------------------------------------------------------------------
         // As imagens da fada usam a MESMA escala, para ela não mudar de tamanho ao trocar.
         private float escala() {
@@ -470,37 +449,35 @@
             return t.getHeight() * escala();
         }
 
-        // Usada por todas as fases
         private void desenharFada() {
             Texture tex;
+            int sprite;
             if (estaRegando()) {
                 tex = texFadaRegando;
+                sprite = 3;
             } else if (subindo) {
                 tex = texFadaVoando1;
+                sprite = 1;
             } else if (descendo) {
                 tex = texFadaVoando2;
-            } else if (andando) {
-                tex = texFadaAndando;
+                sprite = 2;
             } else {
                 tex = texFadaParada;
+                sprite = 0;
             }
             float w = larguraDe(tex);
             float h = alturaDe(tex);
-
-            // Pulinho a cada passo (só enquanto anda)
-            float pulo = andando ? Math.abs(MathUtils.sin(tempoAndando * 10f)) * 0.06f : 0f;
-
-            // A imagem "Andando" original olha para a direita; flip quando vai para a esquerda.
-            boolean flip = andando && !viradaParaDireita;
-
-            lote.draw(tex,
-                    fadaX - cameraX - w / 2f, fadaY - cameraY + pulo, w, h,
-                    0, 0, tex.getWidth(), tex.getHeight(),
-                    flip, false);
+            // flutua de leve, para parecer que está voando
+            float flutuar = MathUtils.sin(tempoVoo * 3f) * 0.03f;
+            // posiciona pelo CORPO (e não pelo canto da imagem), para não "pular" ao trocar de sprite
+            float x = FADA_X_TELA - CENTRO_X_SPRITE[sprite] * w;
+            float y = fadaY + flutuar - CENTRO_Y_SPRITE[sprite] * h;
+            lote.draw(tex, x, y, w, h);
         }
 
+        // Lumi está regando = tocando a luz de uma flor seca (som e sprite usam a mesma regra)
         private boolean estaRegando() {
-            return pertoDaFlor && Gdx.input.isKeyPressed(Input.Keys.SPACE);
+            return tocandoLuz;
         }
 
         // ------------------------------------------------------------------
@@ -546,67 +523,118 @@
             }
         }
 
-        // Fase 3: a mesma imagem repetida (alternando espelhada), no mesmo zoom das outras fases
-        private void desenharCenarioLongo() {
+        // Cenário sem fim: a mesma imagem repetida, alternando normal/espelhada
+        private void desenharCenarioRolando() {
+            Texture t = texturaCenario();
             float altura = alturaCenario();
-            Texture t = texCenario;
-            for (int i = 0; i < REPETICOES_CENARIO_FASE3; i++) {
-                float x = i * LARGURA_CENARIO - cameraX;
-                if (x > LARGURA_MUNDO || x + LARGURA_CENARIO < 0f) {
-                    continue;   // fora da tela
-                }
-                boolean espelhar = (i % 2) == 1;
+            int primeira = MathUtils.floor(deslocamento / LARGURA_CENARIO);
+            for (int k = primeira; k <= primeira + 1; k++) {
+                float x = k * LARGURA_CENARIO - deslocamento;
+                boolean espelhar = (k % 2) != 0;
                 // +0.01 de sobra na largura para não aparecer fresta entre as repetições
-                lote.draw(t, x, -cameraY, LARGURA_CENARIO + 0.01f, altura,
+                lote.draw(t, x, -CAMERA_Y, LARGURA_CENARIO + 0.01f, altura,
                         0, 0, t.getWidth(), t.getHeight(), espelhar, false);
             }
         }
 
-        private void desenharFlor(Texture tex, float x, float alpha) {
-            float altura = larguraImagemFlor * tex.getHeight() / tex.getWidth();
+        private void desenharFlor(Texture tex, float xCenario, float alpha) {
+            int indice = indiceFase();
+            float largura = LARGURA_IMAGEM_FLOR[indice];
+            float altura = largura * tex.getHeight() / tex.getWidth();
             // A base da flor (âncora) fica sempre sobre o chão do cenário
-            float desenhoX = x - ancoraXFlor * larguraImagemFlor - cameraX;
-            float desenhoY = chaoFlores - ancoraYFlor * altura - cameraY;
-            if (desenhoX > LARGURA_MUNDO || desenhoX + larguraImagemFlor < 0f) {
+            float desenhoX = xCenario - ANCORA_X_FLOR[indice] * largura - deslocamento;
+            float desenhoY = CHAO_FLORES - ANCORA_Y_FLOR[indice] * altura - CAMERA_Y;
+            if (desenhoX > LARGURA_MUNDO || desenhoX + largura < 0f) {
                 return;     // fora da tela
             }
             lote.setColor(1f, 1f, 1f, alpha);
-            lote.draw(tex, desenhoX, desenhoY, larguraImagemFlor, altura);
+            lote.draw(tex, desenhoX, desenhoY, largura, altura);
             lote.setColor(1f, 1f, 1f, 1f);
         }
 
-        private void desenharFasePlantas() {
-            lote.begin();
-            if (faseAtual == 3) {
-                desenharCenarioLongo();
-            } else {
-                lote.draw(texCenarioFase2, -cameraX, -cameraY, larguraCenario(), alturaCenario());
+        // Luz mágica de cada flor seca, na altura que ela pede
+        private void desenharLuzes() {
+            float base = tamanhoLuz();
+            for (int i = 0; i < florX.length; i++) {
+                if (florRecuperada[i]) {
+                    continue;
+                }
+                float x = luzXNaTela(i);
+                if (x < -base || x > LARGURA_MUNDO + base) {
+                    continue;
+                }
+                boolean tocando = !conclusaoPendente && lumiTocaLuz(i);
+                // pulsa de leve; cresce quando a Lumi está tocando
+                float pulso = 1f + MathUtils.sin(tempoVoo * 4f + i) * 0.06f;
+                float tam = base * pulso * (tocando ? 1.25f : 1f);
+                lote.draw(texLuzMagica, x - tam / 2f, luzYNaTela(i) - tam / 2f, tam, tam);
             }
+        }
+
+        // Anel de progresso ao lado da luz que está sendo regada
+        private void desenharProgressoRega() {
+            boolean algum = false;
+            for (int i = 0; i < florX.length; i++) {
+                if (!florRecuperada[i] && progressoFlor[i] > 0f) {
+                    algum = true;
+                    break;
+                }
+            }
+            if (!algum) {
+                return;
+            }
+            float raio = 0.15f;
+            float afastamento = tamanhoLuz() * 0.5f;
+            desenhador.begin(ShapeRenderer.ShapeType.Filled);
+            for (int i = 0; i < florX.length; i++) {
+                if (florRecuperada[i] || progressoFlor[i] <= 0f) {
+                    continue;
+                }
+                float cx = luzXNaTela(i) + afastamento;
+                float cy = luzYNaTela(i) + afastamento;
+                desenhador.setColor(0.43f, 0.29f, 0.32f, 1f);          // contorno (marrom dos botões)
+                desenhador.circle(cx, cy, raio + 0.03f, 24);
+                desenhador.setColor(0.91f, 0.89f, 0.80f, 1f);          // fundo creme
+                desenhador.circle(cx, cy, raio, 24);
+                desenhador.setColor(0.47f, 0.75f, 0.43f, 1f);          // verde do progresso
+                float graus = 360f * progressoFlor[i];
+                desenhador.arc(cx, cy, raio - 0.02f, 90f - graus, graus, 24);
+            }
+            desenhador.end();
+        }
+
+        // Desenho de qualquer fase (1, 2 e 3)
+        private void desenharFase() {
+            lote.begin();
+            desenharCenarioRolando();
             for (int i = 0; i < florX.length; i++) {
                 boolean viva = florRecuperada[i];
                 float alpha = viva ? Math.min(1f, animacaoFlor[i] / DURACAO_TRANSFORMACAO_FLOR) : 1f;
+                if (viva && alpha < 1f) {
+                    // a flor seca some por baixo enquanto a viva aparece
+                    desenharFlor(texFloresMortas[i], florX[i], 1f - alpha);
+                }
                 desenharFlor(viva ? texFloresVivas[i] : texFloresMortas[i], florX[i], alpha);
             }
+            desenharLuzes();
             desenharFada();
             lote.draw(texBotaoPausar, 0, 0, LARGURA_MUNDO, ALTURA_MUNDO);
-            int regadas = 0;
-            for (boolean recuperada : florRecuperada) {
-                if (recuperada) regadas++;
-            }
-            desenharContadorFlores(florRecuperada.length, regadas);
+            desenharContadorFlores(florRecuperada.length, floresRecuperadas());
             lote.end();
 
+            desenharProgressoRega();
             desenharBarraForca();
 
             if (DEBUG_HITBOX) {
                 desenhador.begin(ShapeRenderer.ShapeType.Line);
                 desenhador.setColor(1f, 1f, 1f, 1f);
                 desenharHitboxesPausa();
-                // linha do chão das flores e pontos de âncora
-                desenhador.line(0f, chaoFlores - cameraY, LARGURA_MUNDO, chaoFlores - cameraY);
-                for (float x : florX) {
-                    desenhador.circle(x - cameraX, chaoFlores - cameraY, 0.08f);
-                }
+                // área em que a Lumi alcança uma luz, e o centro do corpo da Lumi
+                float tol = TOLERANCIA_ALTURA * ESCALA_LUZ[indiceFase()];
+                float cx = FADA_X_TELA + ALCANCE_X_DESLOCAMENTO;
+                desenhador.circle(FADA_X_TELA, fadaY, 0.06f);
+                desenhador.rect(cx - ALCANCE_X, fadaY - tol, ALCANCE_X * 2f, tol * 2f);
+                desenhador.line(0f, CHAO_FLORES - CAMERA_Y, LARGURA_MUNDO, CHAO_FLORES - CAMERA_Y);
                 desenhador.end();
             }
 
@@ -615,7 +643,7 @@
 
         // Plaquinha com a flor e o placar "regadas / total".
         // Coordenadas de tela (não rola com o cenário). Chamar dentro de lote.begin()/end().
-        // Só é chamado em desenharFase1() e desenharFasePlantas(): não aparece no menu nem nas telas de conclusão.
+        // Só é chamado em desenharFase(): não aparece no menu nem nas telas de conclusão.
         private void desenharContadorFlores(int total, int regadas) {
             lote.draw(texPainelContador, PAINEL_CONTADOR_X, PAINEL_CONTADOR_Y,
                     PAINEL_CONTADOR_W, PAINEL_CONTADOR_H);
@@ -632,53 +660,6 @@
                 if (indice >= 0) {
                     lote.draw(regNumeros[indice], x + i * avanco, y, larguraNumero, ALTURA_NUMERO);
                 }
-            }
-        }
-
-        private void desenharFase1() {
-            float alturaCenario = alturaCenario();
-            float larguraFlor = LARGURA_MUNDO * ESCALA_FLOR;
-            float alturaFlor = ALTURA_MUNDO * ESCALA_FLOR;
-            float xFlor = FLOR_X - larguraFlor / 2f - cameraX;
-            float yFlor = CAMERA_Y_INICIAL + CHAO_Y * (1f - ESCALA_FLOR) - cameraY;
-
-            lote.begin();
-            lote.draw(texCenario, -cameraX, -cameraY, larguraCenario(), alturaCenario);
-            lote.draw(nivelConcluido ? texFlorViva : texFlorMorta,
-                    xFlor, yFlor, larguraFlor, alturaFlor);
-            desenharFada();
-            lote.draw(texBotaoPausar, 0, 0, LARGURA_MUNDO, ALTURA_MUNDO);
-            desenharContadorFlores(1, nivelConcluido ? 1 : 0);
-            lote.end();
-
-            // Barra de força (teste do sensor), por cima do cenário
-            desenharBarraForca();
-
-            if (DEBUG_HITBOX) {
-                desenhador.begin(ShapeRenderer.ShapeType.Line);
-                desenhador.setColor(1f, 1f, 1f, 1f);
-                desenharHitboxesPausa();
-                desenhador.line(FLOR_X - DISTANCIA_REGAR - cameraX, 0f,
-                        FLOR_X - DISTANCIA_REGAR - cameraX, ALTURA_MUNDO);
-                desenhador.line(FLOR_X + DISTANCIA_REGAR - cameraX, 0f,
-                        FLOR_X + DISTANCIA_REGAR - cameraX, ALTURA_MUNDO);
-                desenhador.end();
-            }
-
-            desenharPausa();
-        }
-
-        private boolean fadaPertoDaFlor() {
-            return Math.abs(fadaX - FLOR_X) <= DISTANCIA_REGAR
-                    && Math.abs(fadaY - CHAO_Y) <= DISTANCIA_REGAR;
-        }
-
-        private void verificarRega() {
-            if (!nivelConcluido && forcaAtual >= 0.999f && pertoDaFlor) {
-                nivelConcluido = true;
-                estado = Estado.NIVEL_CONCLUIDO;
-                pararFada();
-                Gdx.app.log("Fase1", "Nivel 1 concluido");
             }
         }
 
@@ -762,8 +743,14 @@
             entradaForca.reset();
             nivelConcluido = false;
             forcaAtual = 0f;
-            pertoDaFlor = false;
-            resetarFada();
+            fadaY = Y_FADA_MIN;
+            subindo = false;
+            descendo = false;
+            tempoVoo = 0f;
+            tocandoLuz = false;
+            deslocamento = 0f;
+            conclusaoPendente = false;
+            configurarFlores(fase);
             musicaJardim.stop();
             somRegar.stop();
         }
@@ -774,18 +761,10 @@
 
         private void iniciarFase2() {
             prepararNovaFase(2, Estado.FASE2);
-            iniciarPlantas(2);
         }
 
         private void iniciarFase3() {
             prepararNovaFase(3, Estado.FASE3);
-            iniciarPlantas(3);
-        }
-
-        private void iniciarPlantas(int fase) {
-            configurarFlores(fase);
-            aguardandoNovaMedicao = false;
-            conclusaoPendente = false;
         }
 
         private Rectangle botaoSobMouse() {
@@ -885,24 +864,7 @@
                 case MENU:
                     desenharMenu();
                     break;
-                case FASE1: {
-                    boolean estavaPausado = pausado;
-                    atualizarEntradaFase();
-                    if (estado == Estado.MENU) {
-                        break;
-                    }
-                    if (!estavaPausado && !pausado && !nivelConcluido) {
-                        atualizarFase1(Gdx.graphics.getDeltaTime());
-                        forcaAtual = entradaForca.getForce();
-                        verificarRega();
-                    }
-                    if (estado == Estado.NIVEL_CONCLUIDO) {
-                        desenharNivelConcluido();
-                    } else {
-                        desenharFase1();
-                    }
-                    break;
-                }
+                case FASE1:
                 case FASE2:
                 case FASE3: {
                     boolean estavaPausado = pausado;
@@ -911,14 +873,14 @@
                         break;
                     }
                     if (!estavaPausado && !pausado) {
-                        atualizarFasePlantas(Gdx.graphics.getDeltaTime());
+                        atualizarFase(Gdx.graphics.getDeltaTime());
                     }
                     if (estado == Estado.NIVEL_CONCLUIDO) {
                         desenharNivelConcluido();
                     } else if (estado == Estado.FIM_DE_JOGO) {
                         desenharTelaFinal();
                     } else {
-                        desenharFasePlantas();
+                        desenharFase();
                     }
                     break;
                 }
@@ -1001,9 +963,9 @@
                 texFloresVivasFase3[i].dispose();
             }
             texPausa.dispose();
+            texLuzMagica.dispose();
             texBotaoPausar.dispose();
             texFadaParada.dispose();
-            texFadaAndando.dispose();
             texFadaRegando.dispose();
             texFadaVoando1.dispose();
             texFadaVoando2.dispose();
