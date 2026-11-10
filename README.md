@@ -60,22 +60,26 @@ Ao final, uma tela compara o desempenho nas 3 fases para mostrar a evolução da
 | ESP32 DevKit V1 | 1 |
 | Sensor de pressão FSR 402 | 1 |
 | Protoboard | 1 |
-| Resistor de 10 kΩ | 1 (2 a 3 de reserva) |
+| Resistor de 10 kΩ | 1 (opcional; recomendado para maior linearidade e estabilidade) |
 | Fios jumper (macho-macho / macho-fêmea) | 1 kit |
 | Cabo USB de dados | 1 |
 
-### Montagem (divisor de tensão)
+### Montagem
 
+Ligue uma perna do FSR ao GPIO32 e a outra ao GND, sem resistor externo, usando o pull-up interno do ESP32. Como o pull-up faz a leitura cair ao apertar o sensor, o firmware inverte o valor antes de enviá-lo. A comunicação USB serial usa 115200 baud.
 
-O ESP32 lê o valor analógico do FSR (0 a 4095) e envia pela porta serial (USB, 9600 baud), uma leitura por linha. O jogo lê esses valores, aplica calibração e suavização e converte em altura da Lumi.
-
-> 📝 O pino e o formato da mensagem serão confirmados na implementação (tarefa T10).
+Para maior linearidade e estabilidade, recomenda-se um resistor de 10 kΩ: nesse caso, ligue o FSR entre 3V3 e o GPIO34 e o resistor entre o GPIO34 e o GND. Nessa montagem alternativa, remova a inversão da leitura no firmware.
 
 ---
 
 ## 🛠️ Tecnologias
 
-ADICIONAR 
+- libGDX
+- Java 8
+- Gradle
+- jSerialComm
+- ESP32 (Arduino IDE)
+- FSR 402
 
 ---
 
@@ -83,11 +87,31 @@ ADICIONAR
 
 ### 1. Firmware do ESP32
 
-ADICIONAR
+1. Instale o pacote **esp32** da Espressif no Arduino IDE.
+2. Selecione a placa **ESP32 Dev Module**.
+3. Abra e grave [`firmware/FloraLume/FloraLume.ino`](firmware/FloraLume/FloraLume.ino).
+4. Confira os valores no Serial Monitor a 115200 baud.
+5. Feche o Serial Monitor antes de iniciar o jogo: apenas um programa por vez pode usar a porta serial.
 
 ### 2. Jogo
 
-ADICIONAR
+Na raiz do projeto, execute:
+
+```bash
+./gradlew lwjgl3:run
+```
+
+O jogo detecta automaticamente a porta do ESP32. Para especificar uma porta:
+
+```bash
+./gradlew lwjgl3:run --args="COM3"
+```
+
+O ESP32 deve estar conectado para que o jogo receba leituras do sensor.
+
+### Calibração
+
+Com `DEBUG = true`, os valores brutos aparecem no console. Anote a leitura com o sensor solto e com a força máxima confortável da criança; ajuste `LEITURA_REPOUSO` e `LEITURA_MAXIMA` em `SerialForceInput` para esses valores.
 
 ---
 
