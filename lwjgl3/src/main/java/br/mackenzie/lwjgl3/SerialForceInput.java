@@ -7,17 +7,21 @@ import com.badlogic.gdx.Gdx;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.util.Arrays;
 import java.util.Locale;
 
-/** Lê a força do FSR por uma porta serial conectada ao ESP32. */
 public class SerialForceInput implements ForceInput {
     public static final int BAUD = 115200;
-    // Estes valores devem ser calibrados individualmente para cada criança.
+
     public static final int LEITURA_REPOUSO = 100;
-    public static final int LEITURA_MAXIMA = 2500;
-    public static final float TAXA_SUAVIZACAO = 15f;
+    public static final int LEITURA_MAXIMA = 3500;
+    public static final float CURVA = 2.0f;
+    public static final float VELOCIDADE_SUBIDA = 0.5f;
+    public static final float VELOCIDADE_DESCIDA = 0.7f;
+
     public static final boolean DEBUG = true;
 
+    private static final int TAMANHO_JANELA = 5;
     private static final long INTERVALO_RECONEXAO_MS = 2000L;
     private static final long INTERVALO_DEBUG_MS = 500L;
 
@@ -25,9 +29,12 @@ public class SerialForceInput implements ForceInput {
     private volatile int leituraBruta;
     private volatile boolean conectado;
     private float forca;
-    private long ultimoDebugMs; // usado apenas pela thread de leitura
+    private long ultimoDebugMs;
 
-    /** Inicia a leitura em segundo plano; null seleciona automaticamente a porta do ESP32. */
+    private final int[] janela = new int[TAMANHO_JANELA];
+    private int indiceJanela;
+    private int totalJanela;
+
     public SerialForceInput(String nomePortaFixa) {
         this.nomePortaFixa = nomePortaFixa;
         Thread leitorSerial = new Thread(this::lerSerial, "Leitor serial do FSR");
@@ -38,14 +45,30 @@ public class SerialForceInput implements ForceInput {
     @Override
     public float getForce() {
         float alvo = 0f;
-        if (conectado) {
-            alvo = (float) (leituraBruta - LEITURA_REPOUSO)
-                    / (LEITURA_MAXIMA - LEITURA_REPOUSO);
-            alvo = Math.max(0f, Math.min(1f, alvo));
+        int bruto = leituraBruta;
+        if (conectado && LEITURA_MAXIMA > LEITURA_REPOUSO + 1) {
+            float norm = (float) (bruto - LEITURA_REPOUSO) / (LEITURA_MAXIMA - LEITURA_REPOUSO);
+            norm = Math.max(0f, Math.min(1f, norm));
+            alvo = (float) Math.pow(norm, CURVA);
         }
 
-        float fator = (float) (1.0 - Math.exp(-TAXA_SUAVIZACAO * Gdx.graphics.getDeltaTime()));
-        forca += (alvo - forca) * fator;
+        float delta = Gdx.graphics.getDeltaTime();
+        float diferenca = alvo - forca;
+        float passoMax = (diferenca > 0 ? VELOCIDADE_SUBIDA : VELOCIDADE_DESCIDA) * delta;
+        if (Math.abs(diferenca) <= passoMax) {
+            forca = alvo;
+        } else {
+            forca += Math.signum(diferenca) * passoMax;
+        }
+
+        if (DEBUG) {
+            long agoraMs = System.currentTimeMillis();
+            if (agoraMs - ultimoDebugMs >= INTERVALO_DEBUG_MS) {
+                System.out.println("[Serial] bruto=" + bruto + " | repouso=" + LEITURA_REPOUSO
+                        + " | maximo=" + LEITURA_MAXIMA + " | forca=" + Math.round(forca * 100) + "%");
+                ultimoDebugMs = agoraMs;
+            }
+        }
         return forca;
     }
 
@@ -110,6 +133,8 @@ public class SerialForceInput implements ForceInput {
                 return;
             }
 
+            totalJanela = 0;
+            indiceJanela = 0;
             conectado = true;
             System.out.println("[Serial] Conectado a porta " + porta.getSystemPortName() + ".");
             try (BufferedReader leitor = new BufferedReader(
@@ -140,11 +165,13 @@ public class SerialForceInput implements ForceInput {
             return;
         }
 
-        leituraBruta = valor;
-        long agoraMs = System.currentTimeMillis();
-        if (DEBUG && agoraMs - ultimoDebugMs >= INTERVALO_DEBUG_MS) {
-            System.out.println("[Serial] bruto = " + valor);
-            ultimoDebugMs = agoraMs;
+        janela[indiceJanela] = valor;
+        indiceJanela = (indiceJanela + 1) % TAMANHO_JANELA;
+        if (totalJanela < TAMANHO_JANELA) {
+            totalJanela++;
         }
+        int[] copia = Arrays.copyOf(janela, totalJanela);
+        Arrays.sort(copia);
+        leituraBruta = copia[totalJanela / 2];
     }
 }
