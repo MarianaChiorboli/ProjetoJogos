@@ -102,6 +102,7 @@ firmware/   Código do ESP32
 
 - Mariana Chiorboli
 - Yasmin Mendes
+- https://onedrive.live.com/:x:/g/personal/c19850f8739e12cf/IQAAD6BjdQ-tQpxqtumY9X3LAY3p8SHj_pqdghecUFA15Oc?rtime=REM8BN4_30g&redeem=aHR0cHM6Ly8xZHJ2Lm1zL3gvYy9jMTk4NTBmODczOWUxMmNmL0lRQUFENkJqZFEtdFFweHF0dW1ZOVgzTEFZM3A4U0hqX3BxZGdoZWNVRkExNU9j
 
 ## Licença
 
